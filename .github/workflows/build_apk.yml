@@ -90,6 +90,13 @@ jobs:
         rm -rf ~/.buildozer/android/packages/pygame/
         find "$GITHUB_WORKSPACE/.buildozer" -name ".done_build*" -path "*/pygame/*" -delete 2>/dev/null || true
 
+    - name: Preparar main.py para Android
+      run: |
+        # p4a sempre exige main.py como entry point
+        # main_android.py tem os controles touch para Android
+        cp main_android.py main.py
+        echo "main.py substituido por main_android.py ($(wc -l < main.py) linhas)"
+
     - name: Build APK
       run: |
         set -o pipefail

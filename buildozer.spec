@@ -5,7 +5,6 @@ package.domain = org.volleybound
 source.dir = .
 source.include_exts = py,png,jpg,jpeg,gif,ogg,wav,mp3
 source.include_patterns = assets/*
-source.main = main_android.py
 version = 1.0
 requirements = python3,pygame
 orientation = landscape
