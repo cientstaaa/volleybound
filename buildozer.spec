@@ -19,4 +19,4 @@ android.build_tools_version = 30.0.3
 p4a.source_dir = /home/runner/p4a
 
 [buildozer]
-log_level = 1
+log_level = 2
