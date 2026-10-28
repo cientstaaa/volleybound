@@ -63,16 +63,21 @@ jobs:
 
     - name: Build APK
       run: |
-        buildozer android debug 2>&1 | tee /tmp/build.log || true
+        set -o pipefail
+        buildozer android debug 2>&1 | tee /tmp/build.log
+      timeout-minutes: 90
+
+    - name: Verificar resultado e mostrar erros
+      if: always()
+      run: |
         echo ""
         echo "====== ERROS ENCONTRADOS ======"
-        grep -n "\[ERROR\]\|error:\|Error:\|FAILED\|Command failed" /tmp/build.log | tail -30 || echo "(nenhum erro encontrado na busca)"
+        grep -n "\[ERROR\]\|error:\|Error:\|FAILED\|Command failed" /tmp/build.log | tail -50 || echo "(nenhum erro encontrado na busca)"
         echo ""
-        echo "====== ULTIMAS 50 LINHAS ======"
-        tail -50 /tmp/build.log
+        echo "====== ULTIMAS 80 LINHAS ======"
+        tail -80 /tmp/build.log
         echo "==============================="
         ls -la bin/ 2>/dev/null && echo "=== APK GERADO! ===" || echo "Sem APK em bin/"
-      timeout-minutes: 90
 
     - name: Upload APK
       if: hashFiles('bin/*.apk') != ''
