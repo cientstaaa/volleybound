@@ -22,9 +22,9 @@ jobs:
         path: |
           ~/.buildozer
           .buildozer/android/platform/build-arm64-v8a
-        key: bz-${{ runner.os }}-v2024.01.21-full-${{ hashFiles('buildozer.spec') }}
+        key: bz-${{ runner.os }}-v2024.01.21-pygame261-${{ hashFiles('buildozer.spec') }}
         restore-keys: |
-          bz-${{ runner.os }}-v2024.01.21-full-
+          bz-${{ runner.os }}-v2024.01.21-pygame261-
 
     - name: Install system dependencies
       run: |
@@ -56,10 +56,60 @@ jobs:
         ln -sf $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/avdmanager $ANDROID_SDK_ROOT/tools/bin/avdmanager
         echo "sdkmanager em tools/bin: $(ls -la $ANDROID_SDK_ROOT/tools/bin/sdkmanager)"
 
-    - name: Clone p4a v2024.01.21 (Python 3.11)
+    - name: Clone p4a v2024.01.21 e corrigir recipe pygame
       run: |
         git clone --depth 1 --branch v2024.01.21 https://github.com/kivy/python-for-android.git /home/runner/p4a
         pip install -e /home/runner/p4a
+
+        # PROBLEMA: pygame 2.1.0 inclui longintrepr.h que foi reorganizado no Python 3.11
+        # SOLUÇÃO: atualizar pygame para 2.6.1 (compatível com Python 3.11+)
+        RECIPE=/home/runner/p4a/pythonforandroid/recipes/pygame/__init__.py
+        echo "=== Recipe pygame original (primeiras 30 linhas) ==="
+        head -30 "$RECIPE"
+
+        python3 - << 'PYEOF'
+import re
+recipe_path = '/home/runner/p4a/pythonforandroid/recipes/pygame/__init__.py'
+with open(recipe_path, 'r') as f:
+    content = f.read()
+
+# Atualiza versão para 2.6.1
+content = re.sub(r"version\s*=\s*'[^']+'", "version = '2.6.1'", content)
+
+# Atualiza URL do download
+content = re.sub(
+    r'https://github\.com/pygame/pygame/archive/[^\'"]+\.tar\.gz',
+    'https://github.com/pygame/pygame/archive/2.6.1.tar.gz',
+    content
+)
+
+# Remove checksums (evitar falhas por hash inválido)
+content = re.sub(r"md5sum\s*=\s*'[^']+'", "md5sum = None", content)
+content = re.sub(r"sha256sum\s*=\s*'[^']+'", "sha256sum = None", content)
+
+with open(recipe_path, 'w') as f:
+    f.write(content)
+
+print("Recipe pygame atualizado para 2.6.1!")
+PYEOF
+
+        # Remove patches da versão 2.1.0 (incompatíveis com 2.6.1)
+        PATCHES_DIR=/home/runner/p4a/pythonforandroid/recipes/pygame/patches
+        if [ -d "$PATCHES_DIR" ]; then
+          echo "=== Removendo patches de pygame 2.1.0 ==="
+          ls "$PATCHES_DIR"
+          rm -rf "$PATCHES_DIR"
+          mkdir -p "$PATCHES_DIR"
+        fi
+
+        # Limpa cache do pygame 2.1.0 para forçar download do 2.6.1
+        rm -rf ~/.buildozer/android/packages/pygame/
+        # Remove build artifacts do pygame para forçar recompilação
+        find "$GITHUB_WORKSPACE/.buildozer" -name ".done_build*" -path "*/pygame/*" -delete 2>/dev/null || true
+        find "$GITHUB_WORKSPACE/.buildozer" -name ".done_install_in_dists*" -path "*/pygame/*" -delete 2>/dev/null || true
+
+        echo "=== Recipe pygame após patch ==="
+        head -30 "$RECIPE"
 
     - name: Build APK
       run: |
@@ -72,7 +122,7 @@ jobs:
       run: |
         echo ""
         echo "====== ERROS ENCONTRADOS ======"
-        grep -n "\[ERROR\]\|error:\|Error:\|FAILED\|Command failed" /tmp/build.log | tail -50 || echo "(nenhum erro encontrado na busca)"
+        grep -n "\[ERROR\]\|error:\|Error:\|FAILED\|Command failed\|fatal error" /tmp/build.log | tail -60 || echo "(nenhum erro encontrado na busca)"
         echo ""
         echo "====== ULTIMAS 80 LINHAS ======"
         tail -80 /tmp/build.log
