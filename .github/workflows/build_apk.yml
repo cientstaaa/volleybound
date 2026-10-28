@@ -10,55 +10,31 @@ jobs:
     runs-on: ubuntu-22.04
 
     steps:
-    - name: Checkout code
+    - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.11'
-
-    - name: Cache buildozer global dir
+    - name: Cache buildozer
       uses: actions/cache@v4
       with:
-        path: ~/.buildozer
+        path: |
+          ~/.buildozer
+          ~/.gradle
         key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+        restore-keys: |
+          buildozer-${{ runner.os }}-
 
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update -q
-        sudo apt-get install -y \
-          git zip unzip openjdk-17-jdk \
-          autoconf libtool pkg-config zlib1g-dev \
-          libncurses5-dev libncursesw5-dev \
-          libffi-dev libssl-dev build-essential \
-          ccache libgdbm-dev libgdbm-compat-dev \
-          libsqlite3-dev libreadline-dev libbz2-dev \
-          libexpat1-dev
-
-    - name: Install buildozer and cython
-      run: pip install buildozer==1.5.0 cython==0.29.36
-
-    - name: Build APK (save logs)
-      run: |
-        buildozer android debug 2>&1 | tee build_full.log || true
-        echo "=== ULTIMAS 80 LINHAS DO BUILD ==="
-        tail -80 build_full.log
-        echo "=== FIM DOS LOGS ==="
-      timeout-minutes: 60
-
-    - name: Upload logs on failure
-      if: always()
-      uses: actions/upload-artifact@v4
+    - name: Build APK with Docker buildozer
+      uses: ArtemSBulgakov/buildozer-action@v1
+      id: buildozer
       with:
-        name: build-logs
-        path: build_full.log
-        retention-days: 7
+        command: buildozer android debug
+        workdir: .
+        buildozer_version: stable
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: VolleyBound-APK
-        path: bin/*.apk
+        path: ${{ steps.buildozer.outputs.filename }}
         if-no-files-found: warn
         retention-days: 30
