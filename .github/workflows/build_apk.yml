@@ -8,33 +8,46 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
+    container:
+      image: kivy/buildozer:v1.5.0
 
     steps:
     - name: Checkout
       uses: actions/checkout@v4
+
+    - name: Fix permissions
+      run: |
+        chown -R $(whoami) .
+        chmod -R 755 .
 
     - name: Cache buildozer
       uses: actions/cache@v4
       with:
         path: |
           ~/.buildozer
-          ~/.gradle
-        key: buildozer-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
-        restore-keys: |
-          buildozer-${{ runner.os }}-
+        key: buildozer-kivy-${{ hashFiles('buildozer.spec') }}
 
-    - name: Build APK with Docker buildozer
-      uses: ArtemSBulgakov/buildozer-action@v1
-      id: buildozer
-      with:
-        command: buildozer android debug
-        workdir: .
-        buildozer_version: stable
+    - name: Build APK
+      run: |
+        buildozer android debug 2>&1 | tee /tmp/build.log || true
+        echo "--- ULTIMAS 100 LINHAS ---"
+        grep -E "ERROR|error|FAILED|failed|Exception|Traceback" /tmp/build.log | tail -30 || true
+        echo "--- FIM ---"
+        ls -la bin/ 2>/dev/null || echo "Sem APK gerado"
+      timeout-minutes: 60
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
         name: VolleyBound-APK
-        path: ${{ steps.buildozer.outputs.filename }}
+        path: bin/*.apk
         if-no-files-found: warn
         retention-days: 30
+
+    - name: Upload build log
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-logs
+        path: /tmp/build.log
+        retention-days: 7
