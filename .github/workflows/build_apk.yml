@@ -66,9 +66,14 @@ jobs:
         echo "=== Recipe original ==="
         head -15 "$RECIPE"
 
-        # Substituir versao e URL usando sed (sem heredoc)
+        # Atualizar versão para 2.6.1
         sed -i "s/version = '2\.1\.0'/version = '2.6.1'/" "$RECIPE"
-        sed -i "s|pygame/archive/2\.1\.0\.tar\.gz|pygame/archive/2.6.1.tar.gz|" "$RECIPE"
+
+        # IMPORTANTE: Usar URL do PyPI (inclui .c pré-gerados) em vez de GitHub
+        # GitHub archive NÃO inclui .c gerados pelo Cython, PyPI sdist SIM!
+        sed -i "s|url = 'https://github.com/pygame/pygame/archive/2\.1\.0\.tar\.gz'|url = 'https://files.pythonhosted.org/packages/source/p/pygame/pygame-2.6.1.tar.gz'|" "$RECIPE"
+        # Fallback caso o campo url tenha formato diferente
+        sed -i "s|pygame/archive/2\.1\.0\.tar\.gz|files.pythonhosted.org/packages/source/p/pygame/pygame-2.6.1.tar.gz|" "$RECIPE"
         sed -i "s/md5sum = '[^']*'/md5sum = None/" "$RECIPE"
         sed -i "s/sha256sum = '[^']*'/sha256sum = None/" "$RECIPE"
 
@@ -79,9 +84,9 @@ jobs:
         fi
 
         echo "=== Recipe atualizado ==="
-        head -15 "$RECIPE"
+        head -20 "$RECIPE"
 
-        # Limpar cache pygame 2.1.0
+        # Limpar cache pygame antigo
         rm -rf ~/.buildozer/android/packages/pygame/
         find "$GITHUB_WORKSPACE/.buildozer" -name ".done_build*" -path "*/pygame/*" -delete 2>/dev/null || true
 
