@@ -8,43 +8,54 @@ on:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    container:
-      image: kivy/buildozer:v1.5.0
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-    - name: Fix permissions
-      run: |
-        chown -R $(whoami) .
-        chmod -R 755 .
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
 
     - name: Cache buildozer
       uses: actions/cache@v4
       with:
-        path: |
-          ~/.buildozer
-        key: buildozer-kivy-${{ hashFiles('buildozer.spec') }}
+        path: ~/.buildozer
+        key: bz-${{ runner.os }}-py310-${{ hashFiles('buildozer.spec') }}
 
-    - name: Build APK
+    - name: Install dependencies
       run: |
-        buildozer android debug 2>&1 | tee /tmp/build.log || true
-        echo "--- ULTIMAS 100 LINHAS ---"
-        grep -E "ERROR|error|FAILED|failed|Exception|Traceback" /tmp/build.log | tail -30 || true
-        echo "--- FIM ---"
-        ls -la bin/ 2>/dev/null || echo "Sem APK gerado"
-      timeout-minutes: 60
+        sudo apt-get update -q
+        sudo apt-get install -y git zip unzip openjdk-17-jdk \
+          autoconf libtool pkg-config zlib1g-dev \
+          libncurses5-dev libncursesw5-dev \
+          libffi-dev libssl-dev build-essential \
+          libgdbm-dev libsqlite3-dev libreadline-dev \
+          libbz2-dev libexpat1-dev lld ccache
+        pip install buildozer==1.4.0 cython==0.29.36
+
+    - name: Build and capture p4a errors
+      run: |
+        set +e
+        buildozer -v android debug 2>&1 | tee /tmp/build.log
+        EXIT=${PIPESTATUS[0]}
+        echo ""
+        echo "====== ERROS ENCONTRADOS ======"
+        grep -n -E "^\[ERROR\]|^ERROR|CMake Error|error:|undefined reference|cannot find|No module" \
+          /tmp/build.log | head -50 || echo "(nenhum erro filtrado)"
+        echo "=============================="
+        ls -la bin/ 2>/dev/null && echo "APK GERADO!" || echo "Sem APK"
+        exit $EXIT
+      timeout-minutes: 55
 
     - name: Upload APK
+      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: VolleyBound-APK
         path: bin/*.apk
-        if-no-files-found: warn
         retention-days: 30
 
-    - name: Upload build log
+    - name: Upload full log
       if: always()
       uses: actions/upload-artifact@v4
       with:
