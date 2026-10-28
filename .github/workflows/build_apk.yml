@@ -16,11 +16,15 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Cache buildozer
+    - name: Cache buildozer (downloads + builds)
       uses: actions/cache@v4
       with:
-        path: ~/.buildozer
-        key: bz-${{ runner.os }}-v2024.01.21-sdk-${{ hashFiles('buildozer.spec') }}
+        path: |
+          ~/.buildozer
+          .buildozer/android/platform/build-arm64-v8a
+        key: bz-${{ runner.os }}-v2024.01.21-full-${{ hashFiles('buildozer.spec') }}
+        restore-keys: |
+          bz-${{ runner.os }}-v2024.01.21-full-
 
     - name: Install system dependencies
       run: |
@@ -61,11 +65,14 @@ jobs:
       run: |
         buildozer android debug 2>&1 | tee /tmp/build.log || true
         echo ""
-        echo "====== ULTIMAS LINHAS ======"
-        tail -30 /tmp/build.log
-        echo "============================"
+        echo "====== ERROS ENCONTRADOS ======"
+        grep -n "\[ERROR\]\|error:\|Error:\|FAILED\|Command failed" /tmp/build.log | tail -30 || echo "(nenhum erro encontrado na busca)"
+        echo ""
+        echo "====== ULTIMAS 50 LINHAS ======"
+        tail -50 /tmp/build.log
+        echo "==============================="
         ls -la bin/ 2>/dev/null && echo "=== APK GERADO! ===" || echo "Sem APK em bin/"
-      timeout-minutes: 55
+      timeout-minutes: 90
 
     - name: Upload APK
       if: hashFiles('bin/*.apk') != ''
