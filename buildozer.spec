@@ -14,7 +14,7 @@ android.permissions = VIBRATE
 android.api = 33
 android.minapi = 21
 android.archs = arm64-v8a
-p4a.branch = 2024.01.21
+p4a.source_dir = /home/runner/p4a
 
 [buildozer]
 log_level = 1

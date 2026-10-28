@@ -16,13 +16,13 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Cache buildozer
+    - name: Cache buildozer global
       uses: actions/cache@v4
       with:
         path: ~/.buildozer
-        key: bz-${{ runner.os }}-p4a-20240121-${{ hashFiles('buildozer.spec') }}
+        key: bz-${{ runner.os }}-v2024.01.21-${{ hashFiles('buildozer.spec') }}
 
-    - name: Install dependencies
+    - name: Install system dependencies
       run: |
         sudo apt-get update -q
         sudo apt-get install -y git zip unzip openjdk-17-jdk \
@@ -33,14 +33,19 @@ jobs:
           libbz2-dev libexpat1-dev lld ccache
         pip install buildozer==1.5.0 cython==0.29.36
 
+    - name: Clone p4a v2024.01.21 (Python 3.11 compatible)
+      run: |
+        git clone --depth 1 --branch v2024.01.21 https://github.com/kivy/python-for-android.git /home/runner/p4a
+        pip install -e /home/runner/p4a
+
     - name: Build APK
       run: |
         buildozer android debug 2>&1 | tee /tmp/build.log || true
         echo ""
-        echo "====== RESUMO ======"
+        echo "====== ULTIMAS LINHAS ======"
         tail -30 /tmp/build.log
-        echo "===================="
-        ls -la bin/ 2>/dev/null && echo "=== APK GERADO! ===" || echo "Sem APK"
+        echo "============================"
+        ls -la bin/ 2>/dev/null && echo "=== APK GERADO! ===" || echo "Sem APK em bin/"
       timeout-minutes: 55
 
     - name: Upload APK
@@ -51,7 +56,7 @@ jobs:
         path: bin/*.apk
         retention-days: 30
 
-    - name: Upload log
+    - name: Upload build log
       if: always()
       uses: actions/upload-artifact@v4
       with:
