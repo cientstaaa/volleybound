@@ -7,13 +7,14 @@ source.include_exts = py,png,jpg,jpeg,gif,ogg,wav,mp3
 source.include_patterns = assets/*
 source.main = main_android.py
 version = 1.0
-requirements = python3,pygame==2.1.4
+requirements = python3,pygame
 orientation = landscape
 fullscreen = 1
 android.permissions = VIBRATE
-android.api = 31
+android.api = 33
 android.minapi = 21
 android.archs = arm64-v8a
+p4a.branch = 2024.01.21
 
 [buildozer]
-log_level = 2
+log_level = 1

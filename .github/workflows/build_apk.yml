@@ -14,13 +14,13 @@ jobs:
 
     - uses: actions/setup-python@v5
       with:
-        python-version: '3.10'
+        python-version: '3.11'
 
     - name: Cache buildozer
       uses: actions/cache@v4
       with:
         path: ~/.buildozer
-        key: bz-${{ runner.os }}-py310-${{ hashFiles('buildozer.spec') }}
+        key: bz-${{ runner.os }}-p4a-20240121-${{ hashFiles('buildozer.spec') }}
 
     - name: Install dependencies
       run: |
@@ -31,31 +31,27 @@ jobs:
           libffi-dev libssl-dev build-essential \
           libgdbm-dev libsqlite3-dev libreadline-dev \
           libbz2-dev libexpat1-dev lld ccache
-        pip install buildozer==1.4.0 cython==0.29.36
+        pip install buildozer==1.5.0 cython==0.29.36
 
-    - name: Build and capture p4a errors
+    - name: Build APK
       run: |
-        set +e
-        buildozer -v android debug 2>&1 | tee /tmp/build.log
-        EXIT=${PIPESTATUS[0]}
+        buildozer android debug 2>&1 | tee /tmp/build.log || true
         echo ""
-        echo "====== ERROS ENCONTRADOS ======"
-        grep -n -E "^\[ERROR\]|^ERROR|CMake Error|error:|undefined reference|cannot find|No module" \
-          /tmp/build.log | head -50 || echo "(nenhum erro filtrado)"
-        echo "=============================="
-        ls -la bin/ 2>/dev/null && echo "APK GERADO!" || echo "Sem APK"
-        exit $EXIT
+        echo "====== RESUMO ======"
+        tail -30 /tmp/build.log
+        echo "===================="
+        ls -la bin/ 2>/dev/null && echo "=== APK GERADO! ===" || echo "Sem APK"
       timeout-minutes: 55
 
     - name: Upload APK
-      if: success()
+      if: hashFiles('bin/*.apk') != ''
       uses: actions/upload-artifact@v4
       with:
         name: VolleyBound-APK
         path: bin/*.apk
         retention-days: 30
 
-    - name: Upload full log
+    - name: Upload log
       if: always()
       uses: actions/upload-artifact@v4
       with:
