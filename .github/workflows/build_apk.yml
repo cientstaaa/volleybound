@@ -46,8 +46,11 @@ jobs:
         yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
         $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager \
           "platform-tools" \
-          "build-tools;30.0.3" \
-          "platforms;android-33"
+          "build-tools;34.0.0" \
+          "platforms;android-33" \
+          "platforms;android-34"
+        echo "=== Build tools disponiveis ==="
+        ls $ANDROID_SDK_ROOT/build-tools/ 2>/dev/null || echo "Nenhum build-tools encontrado"
 
     - name: Fix sdkmanager path
       run: |
@@ -98,6 +101,8 @@ jobs:
         echo "main.py substituido por main_android.py ($(wc -l < main.py) linhas)"
 
     - name: Build APK
+      env:
+        JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
       run: |
         set -o pipefail
         buildozer android debug 2>&1 | tee /tmp/build.log
@@ -107,11 +112,14 @@ jobs:
       if: always()
       run: |
         echo ""
-        echo "====== ERROS ENCONTRADOS ======"
-        grep -n "\[ERROR\]\|fatal error\|error:\|FAILED\|Command failed" /tmp/build.log | tail -60 || echo "(nenhum erro)"
+        echo "====== GRADLE OUTPUT (antes do erro) ======"
+        grep -n -A 5 "gradlew\|BUILD FAILED\|FAILURE:\|Exception\|error:" /tmp/build.log | tail -100 || echo "(sem log gradle)"
         echo ""
-        echo "====== ULTIMAS 80 LINHAS ======"
-        tail -80 /tmp/build.log
+        echo "====== ERROS ENCONTRADOS ======"
+        grep -n "\[ERROR\]\|fatal error\|FAILED\|Command failed\|Exception" /tmp/build.log | tail -40 || echo "(nenhum erro)"
+        echo ""
+        echo "====== ULTIMAS 100 LINHAS ======"
+        tail -100 /tmp/build.log
         echo "==============================="
         ls -la bin/ 2>/dev/null && echo "=== APK GERADO! ===" || echo "Sem APK em bin/"
 
