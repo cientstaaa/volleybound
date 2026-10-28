@@ -16,11 +16,11 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Cache buildozer global
+    - name: Cache buildozer
       uses: actions/cache@v4
       with:
         path: ~/.buildozer
-        key: bz-${{ runner.os }}-v2024.01.21-${{ hashFiles('buildozer.spec') }}
+        key: bz-${{ runner.os }}-v2024.01.21-sdk-${{ hashFiles('buildozer.spec') }}
 
     - name: Install system dependencies
       run: |
@@ -33,7 +33,19 @@ jobs:
           libbz2-dev libexpat1-dev lld ccache
         pip install buildozer==1.5.0 cython==0.29.36
 
-    - name: Clone p4a v2024.01.21 (Python 3.11 compatible)
+    - name: Accept Android SDK licenses
+      run: |
+        mkdir -p $ANDROID_SDK_ROOT/licenses
+        printf '\n24333f8a63b6825ea9c5514f83c2829b004d1fee\nd56f5187479451eabf01fb78af6dfcb131a6481e\n8933bad161af4178b1185d1a37fbf41ea5269c55\n' > $ANDROID_SDK_ROOT/licenses/android-sdk-license
+        printf '\n84831b9409646a918e30573bab4c9c91346d8abd\n' > $ANDROID_SDK_ROOT/licenses/android-sdk-arm-dbt-license
+        printf '\n601085b94cd77f0b54ff86406957099ebe79c4d6\n' > $ANDROID_SDK_ROOT/licenses/android-sdk-preview-license
+        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
+        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager \
+          "platform-tools" \
+          "build-tools;30.0.3" \
+          "platforms;android-33"
+
+    - name: Clone p4a v2024.01.21 (Python 3.11)
       run: |
         git clone --depth 1 --branch v2024.01.21 https://github.com/kivy/python-for-android.git /home/runner/p4a
         pip install -e /home/runner/p4a
