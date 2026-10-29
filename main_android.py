@@ -25,6 +25,11 @@ if getattr(sys, 'frozen', False):
 
 
 
+
+# Detectar se esta rodando no Android
+import platform
+ANDROID = platform.system() == 'Linux' and 'ANDROID_ARGUMENT' in os.environ
+
 try:
     pygame.mixer.pre_init(44100, -16, 1, 512)
 except Exception:
@@ -32,9 +37,15 @@ except Exception:
 
 pygame.init()
 
+# No Android, OBRIGATORIAMENTE usar (0,0) + FULLSCREEN
+# O SDL2 usa a resolucao real do dispositivo automaticamente
+if ANDROID:
+    tela = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+else:
+    tela = pygame.display.set_mode((LARGURA, ALTURA))
 
-
-tela = pygame.display.set_mode((LARGURA, ALTURA))
+# Atualizar dimensoes reais da tela
+LARGURA, ALTURA = tela.get_size()
 
 pygame.display.set_caption("VolleyBound")
 
