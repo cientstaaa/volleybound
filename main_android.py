@@ -1,92 +1,125 @@
 import sys
 import math
-
 import os
-
 import random
-
+import traceback
+import platform
 import pygame
 
-from constantes import LARGURA, ALTURA, BRANCO, FPS
-
-from bola import Bola
-
-from jogador import Jogador, _carregar_com_cor
-
-
-
-# Ao rodar como executavel PyInstaller, muda o diretorio para _internal/
-
-# onde os assets foram empacotados, mantendo todos os caminhos relativos funcionando
-
-if getattr(sys, 'frozen', False):
-
-    os.chdir(sys._MEIPASS)
-
-
-
-
-# Detectar se esta rodando no Android
-import platform
+# Detectar Android
 ANDROID = platform.system() == 'Linux' and 'ANDROID_ARGUMENT' in os.environ
 
+from constantes import LARGURA, ALTURA, BRANCO, FPS
+from bola import Bola
+from jogador import Jogador, _carregar_com_cor
+
+if getattr(sys, 'frozen', False):
+    os.chdir(sys._MEIPASS)
+
+# ---------------------------------------------------------------------------
+# Funcao de exibicao de erros na tela (essencial para debug no Android)
+# ---------------------------------------------------------------------------
+def _mostrar_erro_tela(msg):
+    """Mostra o traceback/erro na tela pygame para debug sem ADB."""
+    try:
+        if not pygame.get_init():
+            pygame.init()
+        if pygame.display.get_surface() is None:
+            if ANDROID:
+                scr = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+            else:
+                scr = pygame.display.set_mode((800, 480))
+        else:
+            scr = pygame.display.get_surface()
+        scr.fill((20, 0, 0))
+        fnt = pygame.font.Font(None, 22)
+        linhas = msg.replace('\r','').split('\n')
+        y = 10
+        for linha in linhas:
+            # quebrar linhas longas
+            while len(linha) > 60:
+                surf = fnt.render(linha[:60], True, (255, 100, 100))
+                scr.blit(surf, (5, y))
+                y += 24
+                linha = '  ' + linha[60:]
+                if y > scr.get_height() - 30:
+                    break
+            surf = fnt.render(linha, True, (255, 100, 100))
+            scr.blit(surf, (5, y))
+            y += 24
+            if y > scr.get_height() - 30:
+                break
+        # instrucao
+        hint = fnt.render("Toque para fechar", True, (200, 200, 200))
+        scr.blit(hint, (5, scr.get_height() - 28))
+        pygame.display.flip()
+        # aguardar toque
+        esperando = True
+        while esperando:
+            for ev in pygame.event.get():
+                if ev.type in (pygame.QUIT, pygame.FINGERDOWN,
+                               pygame.MOUSEBUTTONDOWN, pygame.KEYDOWN):
+                    esperando = False
+    except Exception:
+        pass
+
+# ---------------------------------------------------------------------------
+# Inicializacao principal (dentro de try para capturar erros no Android)
+# ---------------------------------------------------------------------------
 try:
-    pygame.mixer.pre_init(44100, -16, 1, 512)
+    try:
+        pygame.mixer.pre_init(44100, -16, 1, 512)
+    except Exception:
+        pass
+
+    pygame.init()
+
+    # No Android usar (0,0) + FULLSCREEN para pegar resolucao real do dispositivo
+    if ANDROID:
+        tela = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+    else:
+        tela = pygame.display.set_mode((LARGURA, ALTURA))
+
+    # Atualizar dimensoes com a tela real
+    LARGURA, ALTURA = tela.get_size()
+
+    pygame.display.set_caption("VolleyBound")
+
+    try:
+        _icon = pygame.image.load("assets/bola_frame0.png").convert_alpha()
+        pygame.display.set_icon(_icon)
+    except Exception:
+        pass
+
+    relogio = pygame.time.Clock()
+
+    # Font(None, size) usa a fonte builtin do pygame - mais confiavel no Android
+    # que SysFont(None, size) que depende de fontes do sistema
+    fonte_titulo  = pygame.font.Font(None, 110)
+    fonte_grande  = pygame.font.Font(None, 80)
+    fonte_placar  = pygame.font.Font(None, 60)
+    fonte_media   = pygame.font.Font(None, 40)
+    fonte_pequena = pygame.font.Font(None, 28)
+
+    try:
+        som_ponto = pygame.mixer.Sound("assets/ponto.wav")
+    except Exception:
+        som_ponto = None
+
+    try:
+        som_bipe_menu = pygame.mixer.Sound("assets/bipe_menu.wav")
+    except Exception:
+        som_bipe_menu = None
+
+    try:
+        som_confirmar_menu = pygame.mixer.Sound("assets/confirmar_menu.wav")
+    except Exception:
+        som_confirmar_menu = None
+
 except Exception:
-    pass
-
-pygame.init()
-
-# No Android, OBRIGATORIAMENTE usar (0,0) + FULLSCREEN
-# O SDL2 usa a resolucao real do dispositivo automaticamente
-if ANDROID:
-    tela = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
-else:
-    tela = pygame.display.set_mode((LARGURA, ALTURA))
-
-# Atualizar dimensoes reais da tela
-LARGURA, ALTURA = tela.get_size()
-
-pygame.display.set_caption("VolleyBound")
-
-# Icone da janela (barra de tarefas e canto superior)
-
-try:
-    _icon = pygame.image.load("assets/bola_frame0.png").convert_alpha()
-    pygame.display.set_icon(_icon)
-except Exception:
-    pass
-
-
-
-relogio = pygame.time.Clock()
-
-fonte_titulo = pygame.font.SysFont(None, 110)
-
-fonte_grande = pygame.font.SysFont(None, 80)
-
-fonte_placar = pygame.font.SysFont(None, 60)
-
-fonte_media  = pygame.font.SysFont(None, 40)
-
-fonte_pequena = pygame.font.SysFont(None, 28)
-
-
-
-try:
-    som_ponto = pygame.mixer.Sound("assets/ponto.wav")
-except Exception:
-    som_ponto = None
-
-try:
-    som_bipe_menu = pygame.mixer.Sound("assets/bipe_menu.wav")
-except Exception:
-    som_bipe_menu = None
-
-try:
-    som_confirmar_menu = pygame.mixer.Sound("assets/confirmar_menu.wav")
-except Exception:
-    som_confirmar_menu = None
+    _mostrar_erro_tela("ERRO NA INICIALIZACAO:\n" + traceback.format_exc())
+    pygame.quit()
+    sys.exit(1)
 
 
 # ??? TOUCH CONTROLS ??????????????????????????????????????????????????????????
@@ -2837,5 +2870,7 @@ while rodando:
 
 
 
-pygame.quit()
-
+try:
+    pygame.quit()
+except Exception:
+    pass
