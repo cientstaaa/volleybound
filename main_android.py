@@ -67,16 +67,24 @@ def _mostrar_erro_tela(msg):
 # Inicializacao principal (dentro de try para capturar erros no Android)
 # ---------------------------------------------------------------------------
 try:
-    try:
-        pygame.mixer.pre_init(44100, -16, 1, 512)
-    except Exception:
-        pass
-
-    pygame.init()
-
-    # No Android usar (0,0) + FULLSCREEN para pegar resolucao real do dispositivo
     if ANDROID:
-        tela = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+        # Usar driver de audio 'dummy' no Android para evitar crash nativo do SDL2_mixer
+        # O pygame.init() pode causar SIGSEGV se o audio driver falhar
+        os.environ['SDL_AUDIODRIVER'] = 'dummy'
+        # Inicializar apenas display (evita crash do audio)
+        pygame.display.init()
+        pygame.font.init()
+    else:
+        try:
+            pygame.mixer.pre_init(44100, -16, 1, 512)
+        except Exception:
+            pass
+        pygame.init()
+
+    # No Android, (0,0) sem flags - SDL2 usa a tela cheia automaticamente
+    # pygame.FULLSCREEN pode causar crash nativo em alguns dispositivos
+    if ANDROID:
+        tela = pygame.display.set_mode((0, 0))
     else:
         tela = pygame.display.set_mode((LARGURA, ALTURA))
 
