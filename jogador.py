@@ -29,7 +29,10 @@ _fonte_rotulo = None
 def _obter_fonte():
     global _fonte_rotulo
     if _fonte_rotulo is None:
-        _fonte_rotulo = pygame.font.SysFont(None, 24)
+        try:
+            _fonte_rotulo = pygame.font.SysFont(None, 24)
+        except Exception:
+            _fonte_rotulo = pygame.font.Font(None, 24)
     return _fonte_rotulo
 
 def _prever_pouso_x(bola, altura_chao, max_frames=200):

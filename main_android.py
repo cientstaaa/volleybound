@@ -71,9 +71,13 @@ try:
         # Usar driver de audio 'dummy' no Android para evitar crash nativo do SDL2_mixer
         # O pygame.init() pode causar SIGSEGV se o audio driver falhar
         os.environ['SDL_AUDIODRIVER'] = 'dummy'
-        # Inicializar apenas display (evita crash do audio)
+        # Inicializar display, font e tambem o mixer com dummy (para pygame.mixer.get_init() funcionar)
         pygame.display.init()
         pygame.font.init()
+        try:
+            pygame.mixer.init()
+        except Exception:
+            pass  # mixer dummy pode falhar em alguns dispositivos; seguimos sem audio
     else:
         try:
             pygame.mixer.pre_init(44100, -16, 1, 512)
@@ -197,7 +201,11 @@ class ActionButton:
     def hit(self,px,py): return self.rect.collidepoint(px,py)
     def draw(self,surface):
         self._load()
-        if self._fonte is None: self._fonte=pygame.font.SysFont(None,22)
+        if self._fonte is None:
+            try:
+                self._fonte = pygame.font.SysFont(None, 22)
+            except Exception:
+                self._fonte = pygame.font.Font(None, 22)
         r,g,b=self.color; bg=pygame.Surface((self.rect.w,self.rect.h),pygame.SRCALPHA)
         if self.pressed: bg.fill((r,g,b,190))
         else: bg.fill((r//4,g//4,b//4,150))

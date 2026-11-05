@@ -27,11 +27,26 @@ def _carregar_frames():
 def _carregar_sons():
     global _cache_sons
     if _cache_sons is None:
-        _cache_sons = {
-            "toque_jogador": pygame.mixer.Sound("assets/toque_bola.wav"),
-            "toque_rede": pygame.mixer.Sound("assets/toque_rede.wav"),
-            "quique_chao": pygame.mixer.Sound("assets/quique_chao.wav"),
-        }
+        # Retorna None para cada som se o mixer nao estiver inicializado (ex: Android sem audio)
+        if not pygame.mixer.get_init():
+            _cache_sons = {
+                "toque_jogador": None,
+                "toque_rede": None,
+                "quique_chao": None,
+            }
+        else:
+            try:
+                _cache_sons = {
+                    "toque_jogador": pygame.mixer.Sound("assets/toque_bola.wav"),
+                    "toque_rede": pygame.mixer.Sound("assets/toque_rede.wav"),
+                    "quique_chao": pygame.mixer.Sound("assets/quique_chao.wav"),
+                }
+            except Exception:
+                _cache_sons = {
+                    "toque_jogador": None,
+                    "toque_rede": None,
+                    "quique_chao": None,
+                }
     return _cache_sons
 
 class Bola:
@@ -81,7 +96,7 @@ class Bola:
         if self.y + self.raio >= altura_chao:
             self.y = altura_chao - self.raio
             self.vel_y = -self.vel_y * self.amortecimento
-            self.sons["quique_chao"].play()
+            if self.sons["quique_chao"]: self.sons["quique_chao"].play()
 
         if self.x - self.raio <= 0:
             self.x = self.raio
@@ -245,7 +260,7 @@ class Bola:
                 jogador.tipo_toque_ativo = None
 
             self.limitar_velocidade()
-            self.sons["toque_jogador"].play()
+            if self.sons["toque_jogador"]: self.sons["toque_jogador"].play()
 
         self.contatos[id(jogador)] = tocando_agora
         return toque_novo
@@ -274,7 +289,7 @@ class Bola:
                 self.vel_y = -abs(self.vel_y) * 0.6
 
             self.limitar_velocidade()
-            self.sons["toque_rede"].play()
+            if self.sons["toque_rede"]: self.sons["toque_rede"].play()
 
     def desenhar(self, tela):
         sprite = self.frames[self.frame_index]
