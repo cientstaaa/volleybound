@@ -4,6 +4,13 @@ import os
 import random
 import traceback
 import platform
+
+# Adiciona a raiz do projeto ao path para encontrar modulos compartilhados (bola, jogador, constantes)
+# Ativo apenas ao rodar diretamente em PC (desenvolvimento); no APK os modulos ja ficam na raiz.
+_root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+if _root not in sys.path:
+    sys.path.insert(0, _root)
+
 import pygame
 
 # Detectar Android

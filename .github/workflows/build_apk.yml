@@ -95,10 +95,10 @@ jobs:
 
     - name: Preparar main.py para Android
       run: |
-        # p4a sempre exige main.py como entry point
-        # main_android.py tem os controles touch para Android
-        cp main_android.py main.py
-        echo "main.py substituido por main_android.py ($(wc -l < main.py) linhas)"
+        # p4a sempre exige main.py como entry point na raiz
+        # android/main_android.py tem os controles touch para Android
+        cp android/main_android.py main.py
+        echo "main.py substituido por android/main_android.py ($(wc -l < main.py) linhas)"
 
     - name: Build APK
       env:
