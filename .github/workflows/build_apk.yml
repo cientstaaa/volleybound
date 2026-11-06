@@ -146,6 +146,26 @@ jobs:
         else:
             print("AVISO: build_compiled_components nao encontrado apos modificacao")
 
+    - name: Pre-instalar Apache ANT (evitar falha de rede no buildozer)
+      run: |
+        ANT_DIR="$HOME/.buildozer/android/platform/apache-ant-1.9.4"
+        if [ ! -d "$ANT_DIR" ]; then
+          echo "Baixando Apache ANT com retry..."
+          mkdir -p "$HOME/.buildozer/android/platform"
+          for i in 1 2 3 4 5; do
+            wget -q --timeout=60 --tries=1 \
+              "https://archive.apache.org/dist/ant/binaries/apache-ant-1.9.4-bin.tar.gz" \
+              -O /tmp/ant.tar.gz && echo "Download OK na tentativa $i" && break
+            echo "Tentativa $i falhou, aguardando 15s..."
+            sleep 15
+          done
+          tar xzf /tmp/ant.tar.gz -C "$HOME/.buildozer/android/platform/"
+          echo "ANT instalado:"
+          ls "$ANT_DIR/bin/"
+        else
+          echo "ANT ja presente no cache"
+        fi
+
     - name: Preparar main.py para Android
       run: |
         cp android/main_android.py main.py
