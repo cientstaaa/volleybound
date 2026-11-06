@@ -4,12 +4,6 @@ import os
 import random
 import traceback
 
-# Adiciona a raiz do projeto ao path para encontrar modulos compartilhados (bola, jogador, constantes)
-# Ativo apenas ao rodar diretamente em PC (desenvolvimento); no APK os modulos ja ficam na raiz.
-_root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
-if _root not in sys.path:
-    sys.path.insert(0, _root)
-
 # ---------------------------------------------------------------------------
 # CRITICO: detectar Android e setar SDL_AUDIODRIVER=dummy ANTES de importar
 # pygame. O SDL2 pode inicializar o subsistema de audio no momento do import;
@@ -24,7 +18,59 @@ ANDROID = (
 if ANDROID:
     os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
 
+# ---------------------------------------------------------------------------
+# Log de diagnostico — escreve passo a passo num arquivo acessivel pelo
+# gerenciador de arquivos do celular em:
+#   /sdcard/Android/data/org.volleybound/files/vb_debug.txt
+# Util para saber onde o crash nativo acontece (SIGSEGV nao e capturado pelo
+# try/except do Python).
+# ---------------------------------------------------------------------------
+_LOG_PATH = None
+
+def _dbg(msg):
+    global _LOG_PATH
+    if not ANDROID:
+        return
+    if _LOG_PATH is None:
+        for _p in [
+            "/sdcard/Android/data/org.volleybound/files/vb_debug.txt",
+            "/data/data/org.volleybound/files/vb_debug.txt",
+        ]:
+            try:
+                os.makedirs(os.path.dirname(_p), exist_ok=True)
+                with open(_p, "w") as _f:
+                    _f.write("=== VolleyBound Debug Log ===\n")
+                _LOG_PATH = _p
+                break
+            except Exception:
+                continue
+    if _LOG_PATH:
+        try:
+            with open(_LOG_PATH, "a") as _f:
+                _f.write(msg + "\n")
+                _f.flush()
+        except Exception:
+            pass
+
+_dbg(f"[1] imports basicos ok | ANDROID={ANDROID} | SDL_AUDIODRIVER={os.environ.get('SDL_AUDIODRIVER','?')}")
+
+# Adiciona a raiz ao path APENAS no PC (no APK os modulos ficam na raiz do app)
+if not ANDROID:
+    _root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+    if _root not in sys.path:
+        sys.path.insert(0, _root)
+
+_dbg("[2] sys.path ok")
+
 import pygame
+
+_dbg("[3] import pygame ok")
+
+from constantes import LARGURA, ALTURA, BRANCO, FPS
+from bola import Bola
+from jogador import Jogador, _carregar_com_cor
+
+_dbg("[4] imports do jogo ok")
 
 from constantes import LARGURA, ALTURA, BRANCO, FPS
 from bola import Bola
@@ -84,14 +130,12 @@ def _mostrar_erro_tela(msg):
 # Inicializacao principal (dentro de try para capturar erros no Android)
 # ---------------------------------------------------------------------------
 try:
+    _dbg("[5] iniciando pygame...")
     if ANDROID:
-        # SDL_AUDIODRIVER=dummy ja foi definido ANTES do import pygame (linha ~25).
-        # Inicializar apenas display e font; nao inicializa mixer para evitar crash nativo.
-        # bola.py verifica pygame.mixer.get_init() antes de usar sons, entao e seguro.
-        pygame.display.init()
-        pygame.font.init()
-        # Nao chama pygame.mixer.init() no Android — mantem mixer nao inicializado
-        # e deixa os guards em bola.py tratarem os sons como None.
+        # Usa pygame.init() completo — mais compativel com p4a do que inits individuais
+        # SDL_AUDIODRIVER=dummy ja foi definido ANTES do import, entao audio nao crasha
+        result = pygame.init()
+        _dbg(f"[6] pygame.init() ok: {result}")
     else:
         try:
             pygame.mixer.pre_init(44100, -16, 1, 512)
@@ -99,19 +143,29 @@ try:
             pass
         pygame.init()
 
-    # No Android, (0,0) faz o SDL2 usar a resolucao real da tela
+    _dbg("[7] chamando display.set_mode...")
     if ANDROID:
-        tela = pygame.display.set_mode((0, 0))
+        # Tenta FULLSCREEN primeiro (retorna dimensoes reais da tela)
+        try:
+            tela = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+            _dbg("[8] set_mode FULLSCREEN ok")
+        except Exception as _e:
+            _dbg(f"[8] FULLSCREEN falhou ({_e}), tentando sem flags")
+            tela = pygame.display.set_mode((0, 0))
+            _dbg("[8] set_mode sem flags ok")
     else:
         tela = pygame.display.set_mode((LARGURA, ALTURA))
 
     # Atualizar dimensoes com a tela real
     LARGURA, ALTURA = tela.get_size()
+    _dbg(f"[9] tela: {LARGURA}x{ALTURA}")
     # Fallback: se set_mode(0,0) nao retornou dimensoes reais (raro em alguns dispositivos)
     if LARGURA == 0 or ALTURA == 0:
         LARGURA, ALTURA = 1280, 720
         tela = pygame.display.set_mode((LARGURA, ALTURA))
+        _dbg(f"[9b] fallback: {LARGURA}x{ALTURA}")
 
+    _dbg("[10] set_caption...")
     pygame.display.set_caption("VolleyBound")
 
     try:
@@ -120,6 +174,7 @@ try:
     except Exception:
         pass
 
+    _dbg("[11] fontes...")
     relogio = pygame.time.Clock()
 
     # Font(None, size) usa a fonte builtin do pygame - mais confiavel no Android
@@ -130,6 +185,7 @@ try:
     fonte_media   = pygame.font.Font(None, 40)
     fonte_pequena = pygame.font.Font(None, 28)
 
+    _dbg("[12] sons...")
     try:
         som_ponto = pygame.mixer.Sound("assets/ponto.wav")
     except Exception:
@@ -145,8 +201,12 @@ try:
     except Exception:
         som_confirmar_menu = None
 
+    _dbg("[13] inicializacao CONCLUIDA com sucesso!")
+
 except Exception:
-    _mostrar_erro_tela("ERRO NA INICIALIZACAO:\n" + traceback.format_exc())
+    _tb = traceback.format_exc()
+    _dbg(f"EXCECAO NA INICIALIZACAO:\n{_tb}")
+    _mostrar_erro_tela("ERRO NA INICIALIZACAO:\n" + _tb)
     pygame.quit()
     sys.exit(1)
 
