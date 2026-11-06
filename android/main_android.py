@@ -31,10 +31,21 @@ def _dbg(msg):
     global _LOG_PATH
     if not ANDROID:
         return
+    # Tambem escreve no stderr (aparece no adb logcat como python: ...)
+    try:
+        import sys as _sys
+        _sys.stderr.write("[VB] " + msg + "\n")
+        _sys.stderr.flush()
+    except Exception:
+        pass
     if _LOG_PATH is None:
+        # Tenta varios caminhos acessiveis; o correto no Android e org.volleybound.volleybound
         for _p in [
+            "/sdcard/Android/data/org.volleybound.volleybound/files/vb_debug.txt",
             "/sdcard/Android/data/org.volleybound/files/vb_debug.txt",
-            "/data/data/org.volleybound/files/vb_debug.txt",
+            "/data/user/0/org.volleybound.volleybound/files/vb_debug.txt",
+            "/data/data/org.volleybound.volleybound/files/vb_debug.txt",
+            "/tmp/vb_debug.txt",
         ]:
             try:
                 os.makedirs(os.path.dirname(_p), exist_ok=True)
