@@ -22,9 +22,9 @@ jobs:
         path: |
           ~/.buildozer
           .buildozer/android/platform/build-arm64-v8a
-        key: bz-${{ runner.os }}-v2024.01.21-pygame210-v3-${{ hashFiles('buildozer.spec') }}
+        key: bz-${{ runner.os }}-v2024.01.21-pygame210-v4-${{ hashFiles('buildozer.spec') }}
         restore-keys: |
-          bz-${{ runner.os }}-v2024.01.21-pygame210-v3-
+          bz-${{ runner.os }}-v2024.01.21-pygame210-v4-
 
     - name: Install system dependencies
       run: |
@@ -49,8 +49,6 @@ jobs:
           "build-tools;34.0.0" \
           "platforms;android-33" \
           "platforms;android-34"
-        echo "=== Build tools disponiveis ==="
-        ls $ANDROID_SDK_ROOT/build-tools/ 2>/dev/null || echo "Nenhum build-tools encontrado"
 
     - name: Fix sdkmanager path
       run: |
@@ -62,89 +60,6 @@ jobs:
       run: |
         git clone --depth 1 --branch v2024.01.21 https://github.com/kivy/python-for-android.git /home/runner/p4a
         pip install -e /home/runner/p4a
-
-    # pygame 2.1.0 e a versao suportada pelo p4a v2024.01.21 com todos os
-    # patches Android incluidos. O problema: sdl2.c inclui "longintrepr.h"
-    # que nao existe no Python 3.11. Fix: injetar build_compiled_components
-    # no recipe do pygame para corrigir o arquivo antes de compilar.
-    # Usamos "shell: python3 {0}" para evitar problemas de YAML com heredocs.
-    - name: Fix longintrepr.h no recipe pygame (Python 3.11 compat)
-      shell: python3 {0}
-      run: |
-        import re, os, sys
-
-        recipe_path = "/home/runner/p4a/pythonforandroid/recipes/pygame/__init__.py"
-
-        with open(recipe_path, "r") as f:
-            original = f.read()
-
-        print("=== Recipe pygame (primeiras 60 linhas) ===")
-        for i, line in enumerate(original.splitlines()[:60], 1):
-            print(f"{i:3}: {line}")
-
-        # Metodo que corrige sdl2.c antes de compilar
-        # (injeta como override de build_compiled_components no recipe)
-        fix_method = (
-            "\n"
-            "    def build_compiled_components(self, arch):\n"
-            "        import os\n"
-            "        build_dir = self.get_build_dir(arch.arch)\n"
-            "        sdl2c = os.path.join(build_dir, 'src_c', '_sdl2', 'sdl2.c')\n"
-            "        if os.path.exists(sdl2c):\n"
-            "            with open(sdl2c) as _f:\n"
-            "                _code = _f.read()\n"
-            "            OLD = '#include \"longintrepr.h\"'\n"
-            "            if OLD in _code:\n"
-            "                NEW = (\n"
-            "                    '#if PY_VERSION_HEX >= 0x030c0000\\n'\n"
-            "                    '#  include \"cpython/longintrepr.h\"\\n'\n"
-            "                    '#else\\n'\n"
-            "                    '#  include \"longintrepr.h\"\\n'\n"
-            "                    '#endif'\n"
-            "                )\n"
-            "                with open(sdl2c, 'w') as _f:\n"
-            "                    _f.write(_code.replace(OLD, NEW))\n"
-            "                print('[fix] longintrepr.h corrigido em', sdl2c)\n"
-            "            else:\n"
-            "                print('[fix] longintrepr.h nao encontrado (ja corrigido?)')\n"
-            "        else:\n"
-            "            print('[fix] sdl2.c nao encontrado em', sdl2c)\n"
-            "        super().build_compiled_components(arch)\n"
-            "\n"
-        )
-
-        if "build_compiled_components" in original:
-            print("AVISO: build_compiled_components ja existe no recipe!")
-            print("Nenhuma modificacao necessaria.")
-        else:
-            # Encontrar o primeiro 'def' dentro da classe para inserir antes
-            m = re.search(r'class \w+Recipe', original)
-            if not m:
-                print("ERRO: classe Recipe nao encontrada!")
-                sys.exit(1)
-
-            pos = original.find('\n    def ', m.end())
-            if pos < 0:
-                print("ERRO: nenhum metodo encontrado na classe!")
-                sys.exit(1)
-
-            modified = original[:pos + 1] + fix_method + original[pos + 1:]
-
-            with open(recipe_path, "w") as f:
-                f.write(modified)
-
-            print("=== build_compiled_components injetado com sucesso! ===")
-
-        # Verificar resultado
-        with open(recipe_path) as f:
-            result = f.read()
-
-        idx = result.find("def build_compiled_components")
-        if idx >= 0:
-            print("=== Trecho injetado ===")
-            print(result[idx: idx + 600])
-        else:
-            print("AVISO: build_compiled_components nao encontrado apos modificacao")
 
     - name: Pre-instalar Apache ANT (evitar falha de rede no buildozer)
       run: |
@@ -160,11 +75,89 @@ jobs:
             sleep 15
           done
           tar xzf /tmp/ant.tar.gz -C "$HOME/.buildozer/android/platform/"
-          echo "ANT instalado:"
           ls "$ANT_DIR/bin/"
         else
           echo "ANT ja presente no cache"
         fi
+
+    # Fix: pygame 2.1.0 inclui "longintrepr.h" em src_c/_sdl2/sdl2.c,
+    # mas esse header nao existe no Python 3.11 que o p4a cross-compila.
+    # Solucao: injetar build_compiled_components no recipe do pygame que
+    # REMOVE essa linha antes de chamar super().build_compiled_components().
+    # O modulo pygame._sdl2 compila e funciona normalmente sem esse include.
+    - name: Fix longintrepr.h no recipe pygame (Python 3.11 compat)
+      shell: python3 {0}
+      run: |
+        import re, os, sys
+
+        recipe_path = "/home/runner/p4a/pythonforandroid/recipes/pygame/__init__.py"
+
+        with open(recipe_path, "r") as f:
+            original = f.read()
+
+        print("=== Recipe pygame (primeiras 60 linhas) ===")
+        for i, line in enumerate(original.splitlines()[:60], 1):
+            print(f"{i:3}: {line}")
+
+        # Remove o include problematico antes de compilar.
+        # Nao usamos #if PY_VERSION_HEX porque Python 3.11 < 0x030c0000
+        # cairia no #else e ainda tentaria incluir o header inexistente.
+        # Remocao completa e segura para a compilacao Android.
+        fix_method = (
+            "\n"
+            "    def build_compiled_components(self, arch):\n"
+            "        import os\n"
+            "        build_dir = self.get_build_dir(arch.arch)\n"
+            "        sdl2c = os.path.join(build_dir, 'src_c', '_sdl2', 'sdl2.c')\n"
+            "        if os.path.exists(sdl2c):\n"
+            "            with open(sdl2c) as _f:\n"
+            "                _code = _f.read()\n"
+            "            OLD = '#include \"longintrepr.h\"'\n"
+            "            if OLD in _code:\n"
+            "                _fixed = _code.replace(OLD,\n"
+            "                    '/* longintrepr.h removido: nao existe no Python 3.11 */')\n"
+            "                with open(sdl2c, 'w') as _f:\n"
+            "                    _f.write(_fixed)\n"
+            "                print('[fix] longintrepr.h REMOVIDO de', sdl2c)\n"
+            "            else:\n"
+            "                print('[fix] longintrepr.h nao encontrado (ja corrigido)')\n"
+            "        else:\n"
+            "            print('[fix] AVISO: sdl2.c nao encontrado em', sdl2c)\n"
+            "        super().build_compiled_components(arch)\n"
+            "\n"
+        )
+
+        if "build_compiled_components" in original:
+            print("build_compiled_components ja existe - atualizando...")
+            # Substituir a implementacao existente
+            m = re.search(r'\n    def build_compiled_components\(self.*?(?=\n    def |\Z)', original, re.DOTALL)
+            if m:
+                modified = original[:m.start()] + fix_method.rstrip('\n') + original[m.end():]
+                with open(recipe_path, "w") as f:
+                    f.write(modified)
+                print("Substituido!")
+            else:
+                print("AVISO: nao conseguiu substituir, mantendo original")
+        else:
+            m = re.search(r'class \w+Recipe', original)
+            if not m:
+                print("ERRO: classe Recipe nao encontrada!")
+                sys.exit(1)
+            pos = original.find('\n    def ', m.end())
+            if pos < 0:
+                print("ERRO: nenhum metodo encontrado na classe!")
+                sys.exit(1)
+            modified = original[:pos + 1] + fix_method + original[pos + 1:]
+            with open(recipe_path, "w") as f:
+                f.write(modified)
+            print("=== build_compiled_components injetado! ===")
+
+        with open(recipe_path) as f:
+            result = f.read()
+        idx = result.find("def build_compiled_components")
+        if idx >= 0:
+            print("=== Metodo injetado ===")
+            print(result[idx: idx + 500])
 
     - name: Preparar main.py para Android
       run: |
@@ -183,8 +176,8 @@ jobs:
       if: always()
       run: |
         echo ""
-        echo "====== ERROS ENCONTRADOS ======"
-        grep -n "\[ERROR\]\|fatal error\|FAILED\|Command failed\|Exception\|\[fix\]" /tmp/build.log | tail -50 || echo "(nenhum erro)"
+        echo "====== ERROS E FIX LOG ======"
+        grep -n "\[ERROR\]\|fatal error\|FAILED\|Command failed\|\[fix\]" /tmp/build.log | tail -50 || echo "(nenhum erro)"
         echo ""
         echo "====== ULTIMAS 80 LINHAS ======"
         tail -80 /tmp/build.log
