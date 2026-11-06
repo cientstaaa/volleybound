@@ -51,7 +51,7 @@ jobs:
 
       # Pygbag compila e gera o bundle em web/build/web/
       - name: Build com Pygbag
-        run: python -m pygbag --build web/main.py
+        run: python -m pygbag --build --disable-sound-format-error web/main.py
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
@@ -61,3 +61,4 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
