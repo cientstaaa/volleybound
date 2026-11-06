@@ -22,9 +22,9 @@ jobs:
         path: |
           ~/.buildozer
           .buildozer/android/platform/build-arm64-v8a
-        key: bz-${{ runner.os }}-v2024.01.21-pygame210-${{ hashFiles('buildozer.spec') }}
+        key: bz-${{ runner.os }}-v2024.01.21-pygame210-longintfix-${{ hashFiles('buildozer.spec') }}
         restore-keys: |
-          bz-${{ runner.os }}-v2024.01.21-pygame210-
+          bz-${{ runner.os }}-v2024.01.21-pygame210-longintfix-
 
     - name: Install system dependencies
       run: |
@@ -66,6 +66,82 @@ jobs:
     # pygame 2.1.0 e a versao suportada nativamente pelo p4a v2024.01.21
     # com todos os patches de compatibilidade Android incluidos.
     # NAO remover os patches — eles sao essenciais para o SDL2 funcionar no Android.
+    # Fix: o sdl2.c do pygame 2.1.0 inclui "longintrepr.h" que nao existe no
+    # Python 3.11 cross-compilado pelo p4a. Solucao: fazer o patch inline no recipe
+    # do p4a ANTES do buildozer rodar, usando o mecanismo de patches do p4a.
+    - name: Patch recipe pygame p4a (fix longintrepr.h para Python 3.11)
+      run: |
+        PYGAME_RECIPE=/home/runner/p4a/pythonforandroid/recipes/pygame/__init__.py
+
+        echo "=== Recipe pygame atual ==="
+        grep -n "version\|url\|md5\|sha512\|depends\|patches" "$PYGAME_RECIPE" | head -30
+
+        PATCHES_DIR=/home/runner/p4a/pythonforandroid/recipes/pygame/patches
+        mkdir -p "$PATCHES_DIR"
+
+        # Criar patch que corrige o include do longintrepr.h para Python 3.11+
+        cat > "$PATCHES_DIR/fix-longintrepr-py311.patch" << 'ENDPATCH'
+--- a/src_c/_sdl2/sdl2.c
++++ b/src_c/_sdl2/sdl2.c
+@@ -208,7 +208,11 @@
+ #include "pygame.h"
+ #include "pgcompat.h"
+ #include "doc/sdl2_doc.h"
+-#include "longintrepr.h"
++#if PY_VERSION_HEX >= 0x030c0000
++#  include "cpython/longintrepr.h"
++#elif defined(PY_VERSION_HEX)
++#  include "longintrepr.h"
++#endif
+ENDPATCH
+
+        echo "Patch criado:"
+        cat "$PATCHES_DIR/fix-longintrepr-py311.patch"
+
+        # Verificar patches existentes no recipe
+        echo "=== Patches existentes ==="
+        ls "$PATCHES_DIR/" 2>/dev/null || echo "(nenhum patch)"
+
+        # Verificar se o recipe ja lista patches e adicionar o novo se necessario
+        python3 - << 'PYEOF'
+import ast, re
+
+recipe_path = "/home/runner/p4a/pythonforandroid/recipes/pygame/__init__.py"
+with open(recipe_path, "r") as f:
+    content = f.read()
+
+print("Patches no recipe:", re.findall(r"patches\s*=\s*\[.*?\]", content, re.DOTALL))
+
+# Adicionar o patch na lista de patches se nao estiver la
+if "fix-longintrepr-py311.patch" not in content:
+    # Verificar se tem lista de patches
+    if "patches = [" in content:
+        content = content.replace(
+            "patches = [",
+            'patches = [\n        "fix-longintrepr-py311.patch",'
+        )
+    elif "patches = (" in content:
+        content = content.replace(
+            "patches = (",
+            'patches = (\n        "fix-longintrepr-py311.patch",'
+        )
+    else:
+        # Adicionar patches antes do metodo build_arch ou get_recipe_env
+        insert_pos = content.find("    def build_arch")
+        if insert_pos == -1:
+            insert_pos = content.find("    def get_recipe_env")
+        if insert_pos > 0:
+            content = content[:insert_pos] + '    patches = ["fix-longintrepr-py311.patch"]\n\n' + content[insert_pos:]
+    
+    with open(recipe_path, "w") as f:
+        f.write(content)
+    print("Patch adicionado ao recipe!")
+else:
+    print("Patch ja presente no recipe.")
+PYEOF
+
+        echo "=== Recipe apos modificacao (patches) ==="
+        grep -n "patches\|fix-long" "$PYGAME_RECIPE" | head -20
 
     - name: Preparar main.py para Android
       run: |
