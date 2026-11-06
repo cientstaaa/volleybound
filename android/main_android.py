@@ -3,7 +3,6 @@ import math
 import os
 import random
 import traceback
-import platform
 
 # Adiciona a raiz do projeto ao path para encontrar modulos compartilhados (bola, jogador, constantes)
 # Ativo apenas ao rodar diretamente em PC (desenvolvimento); no APK os modulos ja ficam na raiz.
@@ -11,10 +10,21 @@ _root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 if _root not in sys.path:
     sys.path.insert(0, _root)
 
-import pygame
+# ---------------------------------------------------------------------------
+# CRITICO: detectar Android e setar SDL_AUDIODRIVER=dummy ANTES de importar
+# pygame. O SDL2 pode inicializar o subsistema de audio no momento do import;
+# se o driver de audio do Android nao estiver disponivel, ocorre SIGSEGV.
+# ---------------------------------------------------------------------------
+ANDROID = (
+    'ANDROID_ARGUMENT' in os.environ or
+    'ANDROID_DATA'     in os.environ or
+    'ANDROID_ROOT'     in os.environ
+)
 
-# Detectar Android
-ANDROID = platform.system() == 'Linux' and 'ANDROID_ARGUMENT' in os.environ
+if ANDROID:
+    os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
+
+import pygame
 
 from constantes import LARGURA, ALTURA, BRANCO, FPS
 from bola import Bola
@@ -75,16 +85,13 @@ def _mostrar_erro_tela(msg):
 # ---------------------------------------------------------------------------
 try:
     if ANDROID:
-        # Usar driver de audio 'dummy' no Android para evitar crash nativo do SDL2_mixer
-        # O pygame.init() pode causar SIGSEGV se o audio driver falhar
-        os.environ['SDL_AUDIODRIVER'] = 'dummy'
-        # Inicializar display, font e tambem o mixer com dummy (para pygame.mixer.get_init() funcionar)
+        # SDL_AUDIODRIVER=dummy ja foi definido ANTES do import pygame (linha ~25).
+        # Inicializar apenas display e font; nao inicializa mixer para evitar crash nativo.
+        # bola.py verifica pygame.mixer.get_init() antes de usar sons, entao e seguro.
         pygame.display.init()
         pygame.font.init()
-        try:
-            pygame.mixer.init()
-        except Exception:
-            pass  # mixer dummy pode falhar em alguns dispositivos; seguimos sem audio
+        # Nao chama pygame.mixer.init() no Android — mantem mixer nao inicializado
+        # e deixa os guards em bola.py tratarem os sons como None.
     else:
         try:
             pygame.mixer.pre_init(44100, -16, 1, 512)
@@ -92,8 +99,7 @@ try:
             pass
         pygame.init()
 
-    # No Android, (0,0) sem flags - SDL2 usa a tela cheia automaticamente
-    # pygame.FULLSCREEN pode causar crash nativo em alguns dispositivos
+    # No Android, (0,0) faz o SDL2 usar a resolucao real da tela
     if ANDROID:
         tela = pygame.display.set_mode((0, 0))
     else:
@@ -101,6 +107,10 @@ try:
 
     # Atualizar dimensoes com a tela real
     LARGURA, ALTURA = tela.get_size()
+    # Fallback: se set_mode(0,0) nao retornou dimensoes reais (raro em alguns dispositivos)
+    if LARGURA == 0 or ALTURA == 0:
+        LARGURA, ALTURA = 1280, 720
+        tela = pygame.display.set_mode((LARGURA, ALTURA))
 
     pygame.display.set_caption("VolleyBound")
 
