@@ -14,7 +14,7 @@ jobs:
 
     - uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
+        python-version: '3.10'
 
     - name: Cache buildozer (downloads + builds)
       uses: actions/cache@v4
@@ -22,9 +22,9 @@ jobs:
         path: |
           ~/.buildozer
           .buildozer/android/platform/build-arm64-v8a
-        key: bz-${{ runner.os }}-v2024.01.21-pygame261-${{ hashFiles('buildozer.spec') }}
+        key: bz-${{ runner.os }}-v2024.01.21-pygame210-${{ hashFiles('buildozer.spec') }}
         restore-keys: |
-          bz-${{ runner.os }}-v2024.01.21-pygame261-
+          bz-${{ runner.os }}-v2024.01.21-pygame210-
 
     - name: Install system dependencies
       run: |
@@ -63,35 +63,9 @@ jobs:
         git clone --depth 1 --branch v2024.01.21 https://github.com/kivy/python-for-android.git /home/runner/p4a
         pip install -e /home/runner/p4a
 
-    - name: Patch pygame recipe para 2.6.1 (fix Python 3.11)
-      run: |
-        RECIPE=/home/runner/p4a/pythonforandroid/recipes/pygame/__init__.py
-
-        echo "=== Recipe COMPLETO original ==="
-        cat "$RECIPE"
-        echo "=== FIM ORIGINAL ==="
-
-        # Atualizar versão para 2.6.1
-        sed -i "s/version = '2\.1\.0'/version = '2.6.1'/" "$RECIPE"
-
-        # CRITICO: a recipe usa {version} como template na URL, nao versao hardcoded!
-        # Trocar github.com (sem .c pre-gerados) por PyPI (com .c pre-gerados)
-        sed -i "s|github\.com/pygame/pygame/archive/{version}\.tar\.gz|files.pythonhosted.org/packages/source/p/pygame/pygame-{version}.tar.gz|" "$RECIPE"
-        # Fallback para qualquer versao do github
-        sed -i "s|github\.com/pygame/pygame/archive/[^/]*\.tar\.gz|files.pythonhosted.org/packages/source/p/pygame/pygame-{version}.tar.gz|" "$RECIPE"
-
-        sed -i "s/md5sum = '[^']*'/md5sum = None/" "$RECIPE"
-        sed -i "s/sha256sum = '[^']*'/sha256sum = None/" "$RECIPE"
-
-        # Remover patches incompativeis com 2.6.1
-        rm -f /home/runner/p4a/pythonforandroid/recipes/pygame/patches/*.patch 2>/dev/null || true
-
-        echo "=== Recipe COMPLETO apos patch ==="
-        cat "$RECIPE"
-        echo "=== FIM PATCHED ==="
-
-        rm -rf ~/.buildozer/android/packages/pygame/
-        find "$GITHUB_WORKSPACE/.buildozer" -name ".done_build*" -path "*/pygame/*" -delete 2>/dev/null || true
+    # pygame 2.1.0 e a versao suportada nativamente pelo p4a v2024.01.21
+    # com todos os patches de compatibilidade Android incluidos.
+    # NAO remover os patches — eles sao essenciais para o SDL2 funcionar no Android.
 
     - name: Preparar main.py para Android
       run: |
