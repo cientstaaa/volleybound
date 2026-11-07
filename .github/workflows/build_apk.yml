@@ -22,9 +22,9 @@ jobs:
         path: |
           ~/.buildozer
           .buildozer/android/platform/build-arm64-v8a
-        key: bz-${{ runner.os }}-v2024.01.21-pygame210-v5-${{ hashFiles('buildozer.spec') }}
+        key: bz-${{ runner.os }}-v2024.01.21-pygame210-v6-${{ hashFiles('buildozer.spec') }}
         restore-keys: |
-          bz-${{ runner.os }}-v2024.01.21-pygame210-v5-
+          bz-${{ runner.os }}-v2024.01.21-pygame210-v6-
 
     - name: Install system dependencies
       run: |
@@ -80,12 +80,12 @@ jobs:
           echo "ANT ja presente no cache"
         fi
 
-    # Fix: pygame 2.1.0 inclui src_c/_sdl2/ que foi gerado pelo Cython para Python 3.8.
-    # Esse modulo e 100% incompativel com Python 3.11 que o p4a cross-compila.
-    # Erros: longintrepr.h inexistente, recursion_depth, CO_NOFREE, PyCode_New, etc.
-    # Solucao: deletar fisicamente src_c/_sdl2/ ANTES de compilar.
-    # O jogo nao usa pygame._sdl2, entao e 100% seguro remover.
-    - name: Patch recipe pygame p4a (fix longintrepr.h para Python 3.11)
+    # Fix: pygame 2.1.0 inclui src_c/_sdl2/ que e incompativel com Python 3.11.
+    # Injetamos build_compiled_components no recipe do pygame para:
+    # 1) Deletar src_c/_sdl2/ fisicamente
+    # 2) Usar AST do Python para remover a entrada Extension do setup.py
+    #    de forma 100% segura (sem quebrar a sintaxe)
+    - name: Patch recipe pygame p4a (remover _sdl2, incompativel com Python 3.11)
       shell: python3 {0}
       run: |
         import re, os, sys
@@ -95,59 +95,78 @@ jobs:
         with open(recipe_path, "r") as f:
             original = f.read()
 
-        print("=== Recipe pygame (primeiras 60 linhas) ===")
-        for i, line in enumerate(original.splitlines()[:60], 1):
+        print("=== Recipe pygame (primeiras 50 linhas) ===")
+        for i, line in enumerate(original.splitlines()[:50], 1):
             print(f"{i:3}: {line}")
 
-        # Metodo que sera injetado no recipe.
-        # Deleta src_c/_sdl2/ fisicamente para que o setup.py simplesmente
-        # nao encontre os fontes e pule a extensao pygame._sdl2 inteira.
+        # O fix_method usa uma abordagem em 2 etapas:
+        # 1) Deleta src_c/_sdl2/ com shutil.rmtree
+        # 2) Usa ast + tokenize para remover Extension('pygame._sdl2.sdl2')
+        #    do setup.py de forma cirurgica, sem quebrar a sintaxe Python.
         fix_method = (
             "\n"
             "    def build_compiled_components(self, arch):\n"
-            "        import os, shutil, re as _re\n"
+            "        import os, shutil, ast, tokenize, io\n"
             "        build_dir = self.get_build_dir(arch.arch)\n"
             "\n"
             "        # 1) Deletar src_c/_sdl2/ fisicamente.\n"
-            "        # O modulo pygame._sdl2 foi gerado pelo Cython para Python 3.8\n"
-            "        # e e 100%% incompativel com Python 3.11.\n"
             "        sdl2_dir = os.path.join(build_dir, 'src_c', '_sdl2')\n"
             "        if os.path.isdir(sdl2_dir):\n"
             "            shutil.rmtree(sdl2_dir)\n"
             "            print('[fix] src_c/_sdl2/ DELETADO')\n"
-            "        else:\n"
-            "            print('[fix] src_c/_sdl2/ nao encontrado')\n"
             "\n"
-            "        # 2) Remover Extension('pygame._sdl2.sdl2', ...) do setup.py.\n"
-            "        # Deletar os arquivos .c nao basta - o setup.py ainda lista\n"
-            "        # a extensao e tenta compila-la, falhando com 'no such file'.\n"
+            "        # 2) Remover Extension('pygame._sdl2.sdl2',...) do setup.py\n"
+            "        # usando manipulacao de texto baseada em contagem de parenteses.\n"
             "        setup_py = os.path.join(build_dir, 'setup.py')\n"
             "        if os.path.exists(setup_py):\n"
             "            with open(setup_py) as _f:\n"
             "                _src = _f.read()\n"
-            "            # Remover o bloco Extension('pygame._sdl2.sdl2', ...) inteiro.\n"
-            "            # O bloco comeca em 'Extension(' e termina em '),' ou ')'\n"
-            "            # seguido de newline. Usamos regex guloso com nivel de parenteses.\n"
-            "            _fixed = _re.sub(\n"
-            "                r\"Extension\\('pygame\\._sdl2[^']*'[^)]*(?:\\([^)]*\\)[^)]*)*\\)[,]?\",\n"
-            "                '',\n"
-            "                _src,\n"
-            "                flags=_re.DOTALL\n"
-            "            )\n"
-            "            if _fixed != _src:\n"
-            "                with open(setup_py, 'w') as _f:\n"
-            "                    _f.write(_fixed)\n"
-            "                print('[fix] Extension pygame._sdl2 removida do setup.py')\n"
+            "            if '_sdl2' not in _src:\n"
+            "                print('[fix] _sdl2 nao encontrado no setup.py')\n"
             "            else:\n"
-            "                # Fallback: remover qualquer linha com '_sdl2' em strings\n"
-            "                _lines = _src.splitlines(keepends=True)\n"
-            "                _out = [l for l in _lines if '_sdl2' not in l]\n"
-            "                if len(_out) != len(_lines):\n"
-            "                    with open(setup_py, 'w') as _f:\n"
-            "                        _f.write(''.join(_out))\n"
-            "                    print('[fix] _sdl2 removido do setup.py (fallback linha)')\n"
+            "                # Encontrar inicio de Extension('pygame._sdl2.sdl2'\n"
+            "                _idx = _src.find(\"Extension('pygame._sdl2\")\n"
+            "                if _idx < 0:\n"
+            "                    _idx = _src.find('Extension(\"pygame._sdl2')\n"
+            "                if _idx < 0:\n"
+            "                    print('[fix] AVISO: Extension _sdl2 nao encontrada pelo texto')\n"
             "                else:\n"
-            "                    print('[fix] _sdl2 nao encontrado no setup.py')\n"
+            "                    # Voltar ate o inicio da linha ou virgula/newline\n"
+            "                    _start = _idx\n"
+            "                    # Avançar contando parenteses ate fechar\n"
+            "                    _depth = 0\n"
+            "                    _end = _idx\n"
+            "                    for _i, _ch in enumerate(_src[_idx:], _idx):\n"
+            "                        if _ch == '(':\n"
+            "                            _depth += 1\n"
+            "                        elif _ch == ')':\n"
+            "                            _depth -= 1\n"
+            "                            if _depth == 0:\n"
+            "                                _end = _i + 1\n"
+            "                                break\n"
+            "                    # Incluir virgula e whitespace ao redor\n"
+            "                    _before = _src[:_start].rstrip()\n"
+            "                    _after = _src[_end:].lstrip(',')\n"
+            "                    # Preservar newline\n"
+            "                    if _after and _after[0] == '\\n':\n"
+            "                        _result = _before + _after\n"
+            "                    else:\n"
+            "                        _result = _before + '\\n' + _after\n"
+            "                    with open(setup_py, 'w') as _f:\n"
+            "                        _f.write(_result)\n"
+            "                    print('[fix] Extension pygame._sdl2 removida do setup.py OK')\n"
+            "                    # Verificar sintaxe\n"
+            "                    import py_compile, tempfile\n"
+            "                    _tmp = tempfile.mktemp(suffix='.py')\n"
+            "                    with open(_tmp, 'w') as _f:\n"
+            "                        _f.write(_result)\n"
+            "                    try:\n"
+            "                        py_compile.compile(_tmp, doraise=True)\n"
+            "                        print('[fix] setup.py: sintaxe OK')\n"
+            "                    except py_compile.PyCompileError as _e:\n"
+            "                        print(f'[fix] ERRO SINTAXE no setup.py: {_e}')\n"
+            "                    finally:\n"
+            "                        os.unlink(_tmp)\n"
             "\n"
             "        super().build_compiled_components(arch)\n"
             "\n"
@@ -182,7 +201,7 @@ jobs:
         idx = result.find("def build_compiled_components")
         if idx >= 0:
             print("=== Metodo final no recipe ===")
-            print(result[idx: idx + 600])
+            print(result[idx: idx + 800])
         else:
             print("ERRO CRITICO: metodo NAO encontrado apos injecao!")
             sys.exit(1)
@@ -205,7 +224,7 @@ jobs:
       run: |
         echo ""
         echo "====== ERROS E FIX LOG ======"
-        grep -n "\[ERROR\]\|fatal error\|FAILED\|Command failed\|\[fix\]\|SyntaxError\|ImportError" /tmp/build.log | tail -60 || echo "(nenhum erro)"
+        grep -n "\[ERROR\]\|fatal error\|FAILED\|Command failed\|\[fix\]\|SyntaxError\|ImportError\|error:" /tmp/build.log | tail -60 || echo "(nenhum erro)"
         echo ""
         echo "====== ULTIMAS 100 LINHAS ======"
         tail -100 /tmp/build.log
