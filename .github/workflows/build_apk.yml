@@ -82,9 +82,11 @@ jobs:
 
     # Fix: pygame 2.1.0 inclui "longintrepr.h" em src_c/_sdl2/sdl2.c,
     # mas esse header nao existe no Python 3.11 que o p4a cross-compila.
-    # Solucao: injetar build_compiled_components no recipe do pygame que
-    # REMOVE essa linha antes de chamar super().build_compiled_components().
-    # O modulo pygame._sdl2 compila e funciona normalmente sem esse include.
+    # Alem disso, o modulo _sdl2 inteiro foi gerado pelo Cython para Python 3.8
+    # e tem muitas incompatibilidades com Python 3.11 (recursion_depth,
+    # CO_NOFREE, PyCode_New, struct _frame, etc).
+    # Solucao: remover o modulo _sdl2 do setup.py do pygame antes de compilar.
+    # O jogo nao usa pygame._sdl2, entao isso e seguro.
     - name: Fix longintrepr.h no recipe pygame (Python 3.11 compat)
       shell: python3 {0}
       run: |
@@ -99,30 +101,51 @@ jobs:
         for i, line in enumerate(original.splitlines()[:60], 1):
             print(f"{i:3}: {line}")
 
-        # Remove o include problematico antes de compilar.
-        # Nao usamos #if PY_VERSION_HEX porque Python 3.11 < 0x030c0000
-        # cairia no #else e ainda tentaria incluir o header inexistente.
-        # Remocao completa e segura para a compilacao Android.
+        # Remove _sdl2 do setup.py E remove o include longintrepr.h.
+        # O modulo pygame._sdl2 e incompativel com Python 3.11:
+        # foi gerado pelo Cython para Python 3.8 e usa APIs que mudaram.
         fix_method = (
             "\n"
             "    def build_compiled_components(self, arch):\n"
-            "        import os\n"
+            "        import os, re as _re\n"
             "        build_dir = self.get_build_dir(arch.arch)\n"
+            "\n"
+            "        # 1) Remover modulo _sdl2 do setup.py (incompativel com Python 3.11)\n"
+            "        setup_py = os.path.join(build_dir, 'setup.py')\n"
+            "        if os.path.exists(setup_py):\n"
+            "            with open(setup_py) as _f:\n"
+            "                _setup = _f.read()\n"
+            "            # Remover a extensao _sdl2.sdl2 da lista de extensoes\n"
+            "            _orig_len = len(_setup)\n"
+            "            # Estrategia: comentar qualquer linha que referencie _sdl2\n"
+            "            _lines = _setup.splitlines(keepends=True)\n"
+            "            _out = []\n"
+            "            _skip_block = False\n"
+            "            for _line in _lines:\n"
+            "                if '_sdl2' in _line and not _line.strip().startswith('#'):\n"
+            "                    _out.append('# [fix] removido: ' + _line)\n"
+            "                else:\n"
+            "                    _out.append(_line)\n"
+            "            _setup_fixed = ''.join(_out)\n"
+            "            if len(_setup_fixed) != _orig_len:\n"
+            "                with open(setup_py, 'w') as _f:\n"
+            "                    _f.write(_setup_fixed)\n"
+            "                print('[fix] _sdl2 removido do setup.py')\n"
+            "            else:\n"
+            "                print('[fix] _sdl2 nao encontrado no setup.py')\n"
+            "\n"
+            "        # 2) Remover longintrepr.h do sdl2.c (fallback)\n"
             "        sdl2c = os.path.join(build_dir, 'src_c', '_sdl2', 'sdl2.c')\n"
             "        if os.path.exists(sdl2c):\n"
             "            with open(sdl2c) as _f:\n"
             "                _code = _f.read()\n"
-            "            OLD = '#include \"longintrepr.h\"'\n"
-            "            if OLD in _code:\n"
-            "                _fixed = _code.replace(OLD,\n"
-            "                    '/* longintrepr.h removido: nao existe no Python 3.11 */')\n"
+            "            if '#include \"longintrepr.h\"' in _code:\n"
+            "                _fixed = _code.replace('#include \"longintrepr.h\"',\n"
+            "                    '/* longintrepr.h removido */')\n"
             "                with open(sdl2c, 'w') as _f:\n"
             "                    _f.write(_fixed)\n"
-            "                print('[fix] longintrepr.h REMOVIDO de', sdl2c)\n"
-            "            else:\n"
-            "                print('[fix] longintrepr.h nao encontrado (ja corrigido)')\n"
-            "        else:\n"
-            "            print('[fix] AVISO: sdl2.c nao encontrado em', sdl2c)\n"
+            "                print('[fix] longintrepr.h removido do sdl2.c')\n"
+            "\n"
             "        super().build_compiled_components(arch)\n"
             "\n"
         )
