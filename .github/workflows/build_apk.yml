@@ -95,20 +95,6 @@ jobs:
         for i, line in enumerate(original.splitlines()[:50], 1):
             print(f"{i:3}: {line}")
 
-        # Stub C minimo que substitui sdl2.c (gerado pelo Cython para Python 3.8).
-        # Nao usa longintrepr.h nem nenhuma API interna do CPython.
-        # Compila com Python 3.9, 3.10, 3.11, 3.12... sem problemas.
-        SDL2_STUB = (
-            "/* sdl2.c stub - substitui codigo Cython incompativel com Python 3.11 */\\n"
-            "#define PY_SSIZE_T_CLEAN\\n"
-            "#include \\"Python.h\\"\\n"
-            "static struct PyModuleDef _md = {\\n"
-            "    PyModuleDef_HEAD_INIT, \\"sdl2\\", NULL, -1, NULL\\n"
-            "};\\n"
-            "PyMODINIT_FUNC PyInit_sdl2(void) {\\n"
-            "    return PyModule_Create(&_md);\\n"
-            "}\\n"
-        )
 
         fix_method = (
             "\n"
