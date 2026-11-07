@@ -13,9 +13,6 @@ android.permissions = VIBRATE
 android.api = 33
 android.minapi = 21
 android.archs = arm64-v8a
-android.sdk_path = /usr/local/lib/android/sdk
-android.build_tools_version = 34.0.0
-p4a.source_dir = /home/runner/p4a
 
 [buildozer]
 log_level = 2
