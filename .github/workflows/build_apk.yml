@@ -12,23 +12,209 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Cache buildozer (downloads + builds)
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.buildozer
+          .buildozer/android/platform/build-arm64-v8a
+        key: bz-${{ runner.os }}-v2024.01.21-pygame210-v7-${{ hashFiles('buildozer.spec') }}
+        restore-keys: |
+          bz-${{ runner.os }}-v2024.01.21-pygame210-v7-
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update -q
+        sudo apt-get install -y git zip unzip openjdk-17-jdk \
+          autoconf libtool pkg-config zlib1g-dev \
+          libncurses5-dev libncursesw5-dev \
+          libffi-dev libssl-dev build-essential \
+          libgdbm-dev libsqlite3-dev libreadline-dev \
+          libbz2-dev libexpat1-dev lld ccache
+        pip install buildozer==1.5.0 cython==0.29.36
+
+    - name: Accept Android SDK licenses
+      run: |
+        mkdir -p $ANDROID_SDK_ROOT/licenses
+        printf '\n24333f8a63b6825ea9c5514f83c2829b004d1fee\nd56f5187479451eabf01fb78af6dfcb131a6481e\n8933bad161af4178b1185d1a37fbf41ea5269c55\n' > $ANDROID_SDK_ROOT/licenses/android-sdk-license
+        printf '\n84831b9409646a918e30573bab4c9c91346d8abd\n' > $ANDROID_SDK_ROOT/licenses/android-sdk-arm-dbt-license
+        printf '\n601085b94cd77f0b54ff86406957099ebe79c4d6\n' > $ANDROID_SDK_ROOT/licenses/android-sdk-preview-license
+        yes | $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
+        $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager \
+          "platform-tools" \
+          "build-tools;34.0.0" \
+          "platforms;android-33" \
+          "platforms;android-34"
+
+    - name: Fix sdkmanager path
+      run: |
+        mkdir -p $ANDROID_SDK_ROOT/tools/bin
+        ln -sf $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager $ANDROID_SDK_ROOT/tools/bin/sdkmanager
+        ln -sf $ANDROID_SDK_ROOT/cmdline-tools/latest/bin/avdmanager $ANDROID_SDK_ROOT/tools/bin/avdmanager
+
+    - name: Clone p4a v2024.01.21
+      run: |
+        git clone --depth 1 --branch v2024.01.21 https://github.com/kivy/python-for-android.git /home/runner/p4a
+        pip install -e /home/runner/p4a
+
+    - name: Pre-instalar Apache ANT
+      run: |
+        ANT_DIR="$HOME/.buildozer/android/platform/apache-ant-1.9.4"
+        if [ ! -d "$ANT_DIR" ]; then
+          mkdir -p "$HOME/.buildozer/android/platform"
+          for i in 1 2 3 4 5; do
+            wget -q --timeout=60 --tries=1 \
+              "https://archive.apache.org/dist/ant/binaries/apache-ant-1.9.4-bin.tar.gz" \
+              -O /tmp/ant.tar.gz && echo "ANT OK na tentativa $i" && break
+            sleep 15
+          done
+          tar xzf /tmp/ant.tar.gz -C "$HOME/.buildozer/android/platform/"
+        else
+          echo "ANT ja no cache"
+        fi
+
+    # NOVA ABORDAGEM: em vez de modificar o setup.py (frágil),
+    # substituimos src_c/_sdl2/sdl2.c por um stub C minimo que
+    # compila sem erros em qualquer versao do Python.
+    # O jogo nao usa pygame._sdl2, entao o stub e 100% seguro.
+    - name: Patch recipe pygame p4a (stub sdl2.c para Python 3.11)
+      shell: python3 {0}
+      run: |
+        import re, os, sys
+
+        recipe_path = "/home/runner/p4a/pythonforandroid/recipes/pygame/__init__.py"
+
+        with open(recipe_path, "r") as f:
+            original = f.read()
+
+        print("=== Recipe pygame (primeiras 50 linhas) ===")
+        for i, line in enumerate(original.splitlines()[:50], 1):
+            print(f"{i:3}: {line}")
+
+        # Stub C minimo que substitui sdl2.c (gerado pelo Cython para Python 3.8).
+        # Nao usa longintrepr.h nem nenhuma API interna do CPython.
+        # Compila com Python 3.9, 3.10, 3.11, 3.12... sem problemas.
+        SDL2_STUB = (
+            "/* sdl2.c stub - substitui codigo Cython incompativel com Python 3.11 */\\n"
+            "#define PY_SSIZE_T_CLEAN\\n"
+            "#include \\"Python.h\\"\\n"
+            "static struct PyModuleDef _md = {\\n"
+            "    PyModuleDef_HEAD_INIT, \\"sdl2\\", NULL, -1, NULL\\n"
+            "};\\n"
+            "PyMODINIT_FUNC PyInit_sdl2(void) {\\n"
+            "    return PyModule_Create(&_md);\\n"
+            "}\\n"
+        )
+
+        fix_method = (
+            "\n"
+            "    def build_compiled_components(self, arch):\n"
+            "        import os\n"
+            "        build_dir = self.get_build_dir(arch.arch)\n"
+            "\n"
+            "        # Substituir sdl2.c pelo stub minimo.\n"
+            "        # O arquivo original foi gerado pelo Cython para Python 3.8\n"
+            "        # e causa erros em Python 3.11 (longintrepr.h, CO_NOFREE, etc).\n"
+            "        # O stub compila sem problemas e o jogo nao usa pygame._sdl2.\n"
+            "        sdl2_dir = os.path.join(build_dir, 'src_c', '_sdl2')\n"
+            "        sdl2_c   = os.path.join(sdl2_dir, 'sdl2.c')\n"
+            "        if os.path.isfile(sdl2_c):\n"
+            "            stub = (\n"
+            "                '/* sdl2.c stub - substitui Cython incompativel Python 3.11 */\\n'\n"
+            "                '#define PY_SSIZE_T_CLEAN\\n'\n"
+            "                '#include \"Python.h\"\\n'\n"
+            "                'static struct PyModuleDef _md = {\\n'\n"
+            "                '    PyModuleDef_HEAD_INIT, \"sdl2\", NULL, -1, NULL\\n'\n"
+            "                '};\\n'\n"
+            "                'PyMODINIT_FUNC PyInit_sdl2(void) {\\n'\n"
+            "                '    return PyModule_Create(&_md);\\n'\n"
+            "                '}\\n'\n"
+            "            )\n"
+            "            with open(sdl2_c, 'w') as _f:\n"
+            "                _f.write(stub)\n"
+            "            print('[fix] sdl2.c substituido por stub - compilara sem erros!')\n"
+            "        elif os.path.isdir(sdl2_dir):\n"
+            "            print('[fix] sdl2.c nao encontrado em _sdl2/ (ja removido?)')\n"
+            "        else:\n"
+            "            print('[fix] src_c/_sdl2/ nao existe')\n"
+            "\n"
+            "        super().build_compiled_components(arch)\n"
+            "\n"
+        )
+
+        if "build_compiled_components" in original:
+            print("build_compiled_components ja existe - atualizando...")
+            m = re.search(r'\n    def build_compiled_components\(self.*?(?=\n    def |\Z)', original, re.DOTALL)
+            if m:
+                modified = original[:m.start()] + fix_method.rstrip('\n') + original[m.end():]
+                with open(recipe_path, "w") as f:
+                    f.write(modified)
+                print("Substituido!")
+            else:
+                print("AVISO: regex nao encontrou metodo existente")
+        else:
+            m = re.search(r'class \w+Recipe', original)
+            if not m:
+                print("ERRO: classe Recipe nao encontrada!")
+                sys.exit(1)
+            pos = original.find('\n    def ', m.end())
+            if pos < 0:
+                print("ERRO: nenhum metodo encontrado!")
+                sys.exit(1)
+            modified = original[:pos + 1] + fix_method + original[pos + 1:]
+            with open(recipe_path, "w") as f:
+                f.write(modified)
+            print("=== build_compiled_components INJETADO! ===")
+
+        # Verificar resultado
+        with open(recipe_path) as f:
+            result = f.read()
+        idx = result.find("def build_compiled_components")
+        if idx >= 0:
+            print("=== Metodo no recipe ===")
+            print(result[idx: idx + 600])
+        else:
+            print("ERRO CRITICO: metodo NAO encontrado!")
+            sys.exit(1)
+
     - name: Preparar main.py para Android
       run: |
         cp android/main_android.py main.py
         echo "main.py = android/main_android.py ($(wc -l < main.py) linhas)"
 
-    - name: Build APK com Docker buildozer
-      uses: ArtemSBulgakov/buildozer-action@v1
-      id: buildozer
-      with:
-        command: android debug
-        workdir: .
-        buildozer-version: stable
+    - name: Build APK
+      env:
+        JAVA_HOME: /usr/lib/jvm/temurin-17-jdk-amd64
+      run: |
+        set -eo pipefail
+        buildozer android debug 2>&1 | tee /tmp/build.log
+      timeout-minutes: 90
+
+    - name: Verificar resultado
+      if: always()
+      run: |
+        echo "====== ERROS E FIX LOG ======"
+        grep -n "\[ERROR\]\|fatal error\|FAILED\|\[fix\]\|SyntaxError\|error:" /tmp/build.log | tail -60 || echo "(nenhum)"
+        echo "====== ULTIMAS 80 LINHAS ======"
+        tail -80 /tmp/build.log
+        ls -la bin/ 2>/dev/null && echo "=== APK GERADO! ===" || echo "Sem APK em bin/"
 
     - name: Upload APK
-      if: steps.buildozer.outputs.filename != ''
+      if: hashFiles('bin/*.apk') != ''
       uses: actions/upload-artifact@v4
       with:
         name: VolleyBound-APK
-        path: ${{ steps.buildozer.outputs.filename }}
+        path: bin/*.apk
         retention-days: 30
+
+    - name: Upload build log
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-logs
+        path: /tmp/build.log
+        retention-days: 7
