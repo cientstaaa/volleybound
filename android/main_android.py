@@ -65,13 +65,45 @@ def _dbg(msg):
 
 _dbg(f"[1] imports basicos ok | ANDROID={ANDROID} | SDL_AUDIODRIVER={os.environ.get('SDL_AUDIODRIVER','?')}")
 
+# ---------------------------------------------------------------------------
+# FIX CRITICO: No Android (p4a), o working directory pode nao ser o diretorio
+# onde os assets foram extraidos. Todos os arquivos .py e assets/ ficam em
+#   /data/data/org.volleybound.volleybound/files/app/
+# mas o CWD pode ser diferente. Forcar o chdir para o diretorio do script
+# garante que caminhos relativos como "assets/jogador_base_idle_1.png" funcionem.
+# ---------------------------------------------------------------------------
+if ANDROID:
+    _app_dir = os.path.dirname(os.path.abspath(__file__))
+    os.chdir(_app_dir)
+    _dbg(f"[1.5] chdir para {_app_dir} | cwd agora: {os.getcwd()}")
+    # Listar o conteudo do diretorio e de assets/ para debug
+    try:
+        _contents = os.listdir(_app_dir)
+        _dbg(f"[1.6] conteudo app_dir: {_contents[:20]}")
+        _assets_dir = os.path.join(_app_dir, 'assets')
+        if os.path.isdir(_assets_dir):
+            _asset_files = os.listdir(_assets_dir)
+            _dbg(f"[1.7] assets/ existe com {len(_asset_files)} arquivos: {_asset_files[:10]}...")
+        else:
+            _dbg(f"[1.7] AVISO: assets/ NAO EXISTE em {_app_dir}!")
+            # Tentar encontrar assets em outros locais
+            for _try_dir in ['/data/data/org.volleybound.volleybound/files/app',
+                             '/data/user/0/org.volleybound.volleybound/files/app']:
+                _try_assets = os.path.join(_try_dir, 'assets')
+                if os.path.isdir(_try_assets):
+                    _dbg(f"[1.8] assets ENCONTRADO em {_try_dir}! Mudando CWD.")
+                    os.chdir(_try_dir)
+                    break
+    except Exception as _e:
+        _dbg(f"[1.6] erro listando diretorio: {_e}")
+
 # Adiciona a raiz ao path APENAS no PC (no APK os modulos ficam na raiz do app)
 if not ANDROID:
     _root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
     if _root not in sys.path:
         sys.path.insert(0, _root)
 
-_dbg("[2] sys.path ok")
+_dbg(f"[2] sys.path ok | cwd={os.getcwd()}")
 
 import pygame
 
