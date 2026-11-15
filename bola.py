@@ -1,4 +1,5 @@
 import random
+import os
 import pygame
 from constantes import LARGURA
 
@@ -9,6 +10,9 @@ CHANCE_ERRO_CPU = 0.12
 ATTACK_VX_MULT = 1.6
 ATTACK_VY_MULT = 0.55
 
+# Base absoluta para assets (SDL2 no Android pode nao respeitar os.chdir)
+_ASSET_BASE = os.path.dirname(os.path.abspath(__file__))
+
 _cache_frames = None
 _cache_sons = None
 
@@ -17,7 +21,7 @@ def _carregar_frames():
     if _cache_frames is None:
         _cache_frames = [
             pygame.transform.scale(
-                pygame.image.load(f"assets/bola_frame{i}.png").convert_alpha(),
+                pygame.image.load(os.path.join(_ASSET_BASE, f"assets/bola_frame{i}.png")).convert_alpha(),
                 (30, 30)
             )
             for i in range(4)
@@ -37,9 +41,9 @@ def _carregar_sons():
         else:
             try:
                 _cache_sons = {
-                    "toque_jogador": pygame.mixer.Sound("assets/toque_bola.wav"),
-                    "toque_rede": pygame.mixer.Sound("assets/toque_rede.wav"),
-                    "quique_chao": pygame.mixer.Sound("assets/quique_chao.wav"),
+                    "toque_jogador": pygame.mixer.Sound(os.path.join(_ASSET_BASE, "assets/toque_bola.wav")),
+                    "toque_rede": pygame.mixer.Sound(os.path.join(_ASSET_BASE, "assets/toque_rede.wav")),
+                    "quique_chao": pygame.mixer.Sound(os.path.join(_ASSET_BASE, "assets/quique_chao.wav")),
                 }
             except Exception:
                 _cache_sons = {

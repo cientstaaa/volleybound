@@ -1,5 +1,15 @@
 import random
+import os
 import pygame
+
+# ---------------------------------------------------------------------------
+# Base directory para carregar assets.  No Android o SDL2 pode nao respeitar
+# o CWD do Python, entao resolvemos o caminho absoluto aqui.
+# No PC, dirname(__file__) ja aponta para a raiz do projeto.
+# No Android (p4a), __file__ aponta para /data/.../files/app/jogador.pyc,
+# logo dirname(__file__) = /data/.../files/app/ — correto.
+# ---------------------------------------------------------------------------
+_ASSET_BASE = os.path.dirname(os.path.abspath(__file__))
 
 # ---------------------------------------------------------------------------
 # Configuração das animações
@@ -52,8 +62,9 @@ def _prever_pouso_x(bola, altura_chao, max_frames=200):
 
 def _carregar_e_escalar(caminho, largura, altura):
     """Carrega uma imagem, converte com alpha e escala para as dimensões dadas."""
+    caminho_abs = os.path.join(_ASSET_BASE, caminho)
     return pygame.transform.scale(
-        pygame.image.load(caminho).convert_alpha(),
+        pygame.image.load(caminho_abs).convert_alpha(),
         (largura, altura)
     )
 

@@ -115,9 +115,11 @@ from jogador import Jogador, _carregar_com_cor
 
 _dbg("[4] imports do jogo ok")
 
-from constantes import LARGURA, ALTURA, BRANCO, FPS
-from bola import Bola
-from jogador import Jogador, _carregar_com_cor
+# Base absoluta para assets — SDL2 no Android pode ignorar os.chdir() do Python
+_ASSET_BASE = os.path.dirname(os.path.abspath(__file__))
+def _asset(rel_path):
+    """Converte 'assets/foo.png' em caminho absoluto."""
+    return os.path.join(_ASSET_BASE, rel_path)
 
 if getattr(sys, 'frozen', False):
     os.chdir(sys._MEIPASS)
@@ -212,7 +214,7 @@ try:
     pygame.display.set_caption("VolleyBound")
 
     try:
-        _icon = pygame.image.load("assets/bola_frame0.png").convert_alpha()
+        _icon = pygame.image.load(_asset("assets/bola_frame0.png")).convert_alpha()
         pygame.display.set_icon(_icon)
     except Exception:
         pass
@@ -230,17 +232,17 @@ try:
 
     _dbg("[12] sons...")
     try:
-        som_ponto = pygame.mixer.Sound("assets/ponto.wav")
+        som_ponto = pygame.mixer.Sound(_asset("assets/ponto.wav"))
     except Exception:
         som_ponto = None
 
     try:
-        som_bipe_menu = pygame.mixer.Sound("assets/bipe_menu.wav")
+        som_bipe_menu = pygame.mixer.Sound(_asset("assets/bipe_menu.wav"))
     except Exception:
         som_bipe_menu = None
 
     try:
-        som_confirmar_menu = pygame.mixer.Sound("assets/confirmar_menu.wav")
+        som_confirmar_menu = pygame.mixer.Sound(_asset("assets/confirmar_menu.wav"))
     except Exception:
         som_confirmar_menu = None
 
@@ -272,7 +274,7 @@ class VirtualJoystick:
         if self._loaded: return
         self._loaded=True
         try:
-            img=pygame.image.load("assets/joystick_base.png").convert_alpha()
+            img=pygame.image.load(_asset("assets/joystick_base.png")).convert_alpha()
             d=self.RAIO_BASE*2+12; self._img=pygame.transform.scale(img,(d,d))
         except: self._img=None
     def handle_fingerdown(self,px,py,fid):
@@ -314,7 +316,7 @@ class ActionButton:
         if self._loaded: return
         self._loaded=True
         try:
-            img=pygame.image.load(f"assets/{self.img_name}.png").convert_alpha()
+            img=pygame.image.load(_asset(f"assets/{self.img_name}.png")).convert_alpha()
             inner=min(self.rect.w-10,self.rect.h-22)
             self._img=pygame.transform.scale(img,(inner,inner))
         except: self._img=None
@@ -656,7 +658,7 @@ def obter_preview(cor):
 
         # Carrega o sprite base e aplica a cor do time via palette swap
 
-        img = _carregar_com_cor("assets/jogador_base_idle_1.png", 160, 160, cor)
+        img = _carregar_com_cor(_asset("assets/jogador_base_idle_1.png"), 160, 160, cor)
 
         _cache_previews[cor] = img
 
@@ -1084,7 +1086,7 @@ def obter_fundo(nome_quadra):
 
     if nome_quadra not in _cache_fundos:
 
-        img = pygame.image.load(f"assets/fundo_{nome_quadra}.png").convert()
+        img = pygame.image.load(_asset(f"assets/fundo_{nome_quadra}.png")).convert()
 
         if img.get_size() != (LARGURA, ALTURA):
 

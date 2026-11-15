@@ -22,9 +22,9 @@ jobs:
         path: |
           ~/.buildozer
           .buildozer/android/platform/build-arm64-v8a
-        key: bz-${{ runner.os }}-v2024.01.21-pygame210-v9-${{ hashFiles('buildozer.spec') }}
+        key: bz-${{ runner.os }}-v2024.01.21-pygame210-v10-${{ hashFiles('buildozer.spec') }}
         restore-keys: |
-          bz-${{ runner.os }}-v2024.01.21-pygame210-v9-
+          bz-${{ runner.os }}-v2024.01.21-pygame210-v10-
 
     - name: Install system dependencies
       run: |
