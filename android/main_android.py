@@ -382,6 +382,29 @@ class PauseButton:
         pygame.draw.rect(s,(255,255,255),(10,11,8,22)); pygame.draw.rect(s,(255,255,255),(26,11,8,22))
         surface.blit(s,self.rect.topleft)
 
+class BackButton:
+    """Botao 'Voltar' para menus touch."""
+    def __init__(self):
+        self.rect = pygame.Rect(10, 8, 100, 44)
+        self._font = None
+    def hit(self, pos): return self.rect.collidepoint(pos)
+    def draw(self, surface):
+        s = pygame.Surface((self.rect.w, self.rect.h), pygame.SRCALPHA)
+        s.fill((20, 30, 60, 180))
+        pygame.draw.rect(s, (80, 150, 255, 220), (0, 0, self.rect.w, self.rect.h), 2, border_radius=8)
+        if self._font is None:
+            self._font = pygame.font.Font(None, 30)
+        txt = self._font.render("< Voltar", True, (255, 255, 255))
+        s.blit(txt, (self.rect.w//2 - txt.get_width()//2, self.rect.h//2 - txt.get_height()//2))
+        surface.blit(s, self.rect.topleft)
+
+back_btn = BackButton()
+
+# Debounce para menus — impede que toques rapidos (ou eventos duplicados SDL2)
+# avancem mais de uma tela por vez. Guarda o timestamp do ultimo toque aceito.
+_menu_last_touch_ms = 0
+_MENU_DEBOUNCE_MS = 200  # 200ms de cooldown entre toques
+
 
 
 PONTOS_POR_SET = 15
@@ -1522,11 +1545,13 @@ while rodando:
             if estado in ("jogando", "saque", "saque_viagem", "ponto_marcado"):
                 if pause_btn.hit((px, py)):
                     estado_antes_pausa = estado; estado = "pausado"
-                elif estado == "jogando":
+                elif estado in ("jogando", "saque", "saque_viagem"):
                     touch_controls.handle_fingerdown(px, py, evento.finger_id)
-            else:
-                pygame.event.post(pygame.event.Event(pygame.MOUSEBUTTONDOWN,
-                    {"pos": (px, py), "button": 1}))
+            # Menus: converter FINGERDOWN em MOUSEBUTTONDOWN
+            # NOTA: SDL2 no Android ja sintetiza MOUSEBUTTONDOWN automaticamente
+            # a partir de FINGERDOWN. NAO postar manualmente, ou o evento
+            # sera processado DUAS VEZES (causando skip de tela e toggle duplo).
+            # O elif abaixo foi REMOVIDO para evitar double-input.
 
         elif evento.type == pygame.FINGERMOTION:
             touch_controls.handle_fingermotion(
@@ -1537,42 +1562,69 @@ while rodando:
 
         elif evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1:
             mx, my = evento.pos
-            if estado == "titulo":
-                (som_confirmar_menu.play() if som_confirmar_menu else None); menu_opcao = 0; estado = "menu_principal"
-            elif estado == "menu_principal":
-                for i in range(2):
-                    if pygame.Rect(LARGURA//2-230, 200+i*130, 460, 100).collidepoint(mx, my):
-                        menu_opcao = i; (som_confirmar_menu.play() if som_confirmar_menu else None); slot_selecionado = 0
-                        if i == 0: modo_torneio=False; dificuldade_ia_atual=DIFICULDADE_IA_PADRAO; estado="config_jogadores"
-                        else: modo_torneio=True; torneio_rodada=0; sortear_torneio(); preparar_rodada_torneio(); estado="config_jogadores"
-                        break
-            elif estado == "config_jogadores":
-                nav = slots_navegaveis()
-                for pos, isl in enumerate(nav):
-                    if pygame.Rect(LARGURA//2-260, 145+pos*72, 520, 55).collidepoint(mx, my):
-                        ciclar_ocupante(isl, 1); (som_bipe_menu.play() if som_bipe_menu else None); break
-                if my > ALTURA-80: (som_confirmar_menu.play() if som_confirmar_menu else None); slot_selecionado=0; estado="config_cores"
-            elif estado == "config_cores":
-                cx_e=LARGURA//2-200; cx_d=LARGURA//2+200
-                if abs(mx-cx_e)<130 and not modo_torneio: ciclar_cor("esquerda",1); (som_bipe_menu.play() if som_bipe_menu else None)
-                elif abs(mx-cx_d)<130 and not modo_torneio: ciclar_cor("direita",1); (som_bipe_menu.play() if som_bipe_menu else None)
-                if my > ALTURA-80:
-                    (som_confirmar_menu.play() if som_confirmar_menu else None)
-                    if modo_torneio: corrigir_conflitos_torneio()
-                    estado="config_quadra"
-            elif estado == "config_quadra":
-                if my < ALTURA-78:
-                    if mx < LARGURA//2: ciclar_quadra(-1); (som_bipe_menu.play() if som_bipe_menu else None)
-                    else: ciclar_quadra(1); (som_bipe_menu.play() if som_bipe_menu else None)
+            _now_ms = pygame.time.get_ticks()
+            # Debounce: ignora toque se muito perto do anterior (evita double-input SDL2)
+            if estado in ("titulo","menu_principal","config_jogadores","config_cores","config_quadra","torneio_apresentacao","pausado","fim_set","fim_jogo","torneio_campeao","torneio_eliminado"):
+                if _now_ms - _menu_last_touch_ms < _MENU_DEBOUNCE_MS:
+                    pass  # ignora este toque
                 else:
-                    (som_confirmar_menu.play() if som_confirmar_menu else None)
-                    if modo_torneio: estado="torneio_apresentacao"
-                    else: novo_jogo(); iniciar_saque("esquerda")
-            elif estado == "torneio_apresentacao":
-                (som_confirmar_menu.play() if som_confirmar_menu else None); novo_jogo(); iniciar_saque("esquerda")
-            elif estado == "pausado":
-                if my < ALTURA//2: estado=estado_antes_pausa
-                else: modo_torneio=False; estado="titulo"
+                    _menu_last_touch_ms = _now_ms
+                    if estado == "titulo":
+                        (som_confirmar_menu.play() if som_confirmar_menu else None); menu_opcao = 0; estado = "menu_principal"
+                    elif estado == "menu_principal":
+                        # Botao voltar
+                        if back_btn.hit((mx, my)):
+                            (som_bipe_menu.play() if som_bipe_menu else None); estado = "titulo"
+                        else:
+                            for i in range(2):
+                                if pygame.Rect(LARGURA//2-230, 200+i*130, 460, 100).collidepoint(mx, my):
+                                    menu_opcao = i; (som_confirmar_menu.play() if som_confirmar_menu else None); slot_selecionado = 0
+                                    if i == 0: modo_torneio=False; dificuldade_ia_atual=DIFICULDADE_IA_PADRAO; estado="config_jogadores"
+                                    else: modo_torneio=True; torneio_rodada=0; sortear_torneio(); preparar_rodada_torneio(); estado="config_jogadores"
+                                    break
+                    elif estado == "config_jogadores":
+                        if back_btn.hit((mx, my)):
+                            (som_bipe_menu.play() if som_bipe_menu else None); estado = "menu_principal"
+                        elif my > ALTURA-80:
+                            (som_confirmar_menu.play() if som_confirmar_menu else None); slot_selecionado=0; estado="config_cores"
+                        else:
+                            nav = slots_navegaveis()
+                            for pos, isl in enumerate(nav):
+                                if pygame.Rect(LARGURA//2-260, 145+pos*72, 520, 55).collidepoint(mx, my):
+                                    ciclar_ocupante(isl, 1); (som_bipe_menu.play() if som_bipe_menu else None); break
+                    elif estado == "config_cores":
+                        if back_btn.hit((mx, my)):
+                            (som_bipe_menu.play() if som_bipe_menu else None); estado = "config_jogadores"
+                        elif my > ALTURA-80:
+                            (som_confirmar_menu.play() if som_confirmar_menu else None)
+                            if modo_torneio: corrigir_conflitos_torneio()
+                            estado="config_quadra"
+                        else:
+                            cx_e=LARGURA//2-200; cx_d=LARGURA//2+200
+                            if abs(mx-cx_e)<130 and not modo_torneio: ciclar_cor("esquerda",1); (som_bipe_menu.play() if som_bipe_menu else None)
+                            elif abs(mx-cx_d)<130 and not modo_torneio: ciclar_cor("direita",1); (som_bipe_menu.play() if som_bipe_menu else None)
+                    elif estado == "config_quadra":
+                        if back_btn.hit((mx, my)):
+                            (som_bipe_menu.play() if som_bipe_menu else None); estado = "config_cores"
+                        elif my > ALTURA-78:
+                            (som_confirmar_menu.play() if som_confirmar_menu else None)
+                            if modo_torneio: estado="torneio_apresentacao"
+                            else: novo_jogo(); iniciar_saque("esquerda")
+                        else:
+                            if mx < LARGURA//2: ciclar_quadra(-1); (som_bipe_menu.play() if som_bipe_menu else None)
+                            else: ciclar_quadra(1); (som_bipe_menu.play() if som_bipe_menu else None)
+                    elif estado == "torneio_apresentacao":
+                        (som_confirmar_menu.play() if som_confirmar_menu else None); novo_jogo(); iniciar_saque("esquerda")
+                    elif estado == "pausado":
+                        # Botoes visuais no pause
+                        btn_w, btn_h = 300, 70
+                        btn_x = LARGURA//2 - btn_w//2
+                        btn_continuar = pygame.Rect(btn_x, ALTURA//2 - 50, btn_w, btn_h)
+                        btn_menu = pygame.Rect(btn_x, ALTURA//2 + 40, btn_w, btn_h)
+                        if btn_continuar.collidepoint(mx, my):
+                            estado=estado_antes_pausa
+                        elif btn_menu.collidepoint(mx, my):
+                            modo_torneio=False; estado="titulo"
             elif estado == "fim_set":
                 (som_confirmar_menu.play() if som_confirmar_menu else None)
                 ls="esquerda" if placar_esquerda<placar_direita else "direita"
@@ -2146,6 +2198,8 @@ while rodando:
 
                            fonte_pequena, (100, 130, 170), ALTURA - 30)
 
+        back_btn.draw(tela)
+
 
 
     # ============ ESTADO: CONFIG CORES ============
@@ -2256,6 +2310,8 @@ while rodando:
 
         texto_centralizado("ESC: voltar   ESPACO: continuar", fonte_pequena, (100, 130, 170), ALTURA - 28)
 
+        back_btn.draw(tela)
+
 
 
     # ============ ESTADO: CONFIG QUADRA ============
@@ -2303,6 +2359,8 @@ while rodando:
         h_surf = fonte_pequena.render(hint, True, (100, 130, 170))
 
         tela.blit(h_surf, (LARGURA // 2 - h_surf.get_width() // 2, ALTURA - 30))
+
+        back_btn.draw(tela)
 
 
 
@@ -2949,11 +3007,23 @@ while rodando:
 
         texto_centralizado(f"{placar_esquerda}  -  {placar_direita}", fonte_placar, BRANCO, 20)
 
-        texto_centralizado("PAUSADO", fonte_grande, BRANCO, 220)
+        texto_centralizado("PAUSADO", fonte_grande, BRANCO, 180)
 
-        texto_centralizado("Toque para continuar", fonte_pequena, BRANCO, 310)
-
-        texto_centralizado("Toque na metade inferior para voltar ao menu", fonte_pequena, BRANCO, 340)
+        # Botoes visuais do pause
+        btn_w, btn_h = 300, 70
+        btn_x = LARGURA//2 - btn_w//2
+        # Botao Continuar
+        btn_rect_c = pygame.Rect(btn_x, ALTURA//2 - 50, btn_w, btn_h)
+        pygame.draw.rect(tela, (30, 120, 60), btn_rect_c, border_radius=12)
+        pygame.draw.rect(tela, (80, 200, 100), btn_rect_c, 3, border_radius=12)
+        txt_c = fonte_media.render("Continuar", True, BRANCO)
+        tela.blit(txt_c, (btn_rect_c.centerx - txt_c.get_width()//2, btn_rect_c.centery - txt_c.get_height()//2))
+        # Botao Voltar ao Menu
+        btn_rect_m = pygame.Rect(btn_x, ALTURA//2 + 40, btn_w, btn_h)
+        pygame.draw.rect(tela, (120, 30, 30), btn_rect_m, border_radius=12)
+        pygame.draw.rect(tela, (200, 80, 80), btn_rect_m, 3, border_radius=12)
+        txt_m = fonte_media.render("Voltar ao Menu", True, BRANCO)
+        tela.blit(txt_m, (btn_rect_m.centerx - txt_m.get_width()//2, btn_rect_m.centery - txt_m.get_height()//2))
 
 
 
