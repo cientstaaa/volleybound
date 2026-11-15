@@ -22,9 +22,9 @@ jobs:
         path: |
           ~/.buildozer
           .buildozer/android/platform/build-arm64-v8a
-        key: bz-${{ runner.os }}-v2024.01.21-pygame210-v7-${{ hashFiles('buildozer.spec') }}
+        key: bz-${{ runner.os }}-v2024.01.21-pygame210-v8-${{ hashFiles('buildozer.spec') }}
         restore-keys: |
-          bz-${{ runner.os }}-v2024.01.21-pygame210-v7-
+          bz-${{ runner.os }}-v2024.01.21-pygame210-v8-
 
     - name: Install system dependencies
       run: |
@@ -77,44 +77,104 @@ jobs:
           echo "ANT ja no cache"
         fi
 
-    # NOVA ABORDAGEM: em vez de modificar o setup.py (frágil),
-    # substituimos src_c/_sdl2/sdl2.c por um stub C minimo que
-    # compila sem erros em qualquer versao do Python.
-    # O jogo nao usa pygame._sdl2, entao o stub e 100% seguro.
-    - name: Patch recipe pygame p4a (stub sdl2.c para Python 3.11)
+    # FIX DEFINITIVO para pygame 2.1.0 + Python 3.11:
+    # 1) Cria shim longintrepr.h no include dir do Python cross-compilado
+    #    (resolve o erro em _sprite.c e qualquer outro Cython-generated .c)
+    # 2) Substitui TODOS os .c em _sdl2/ por stubs minimos
+    #    (esses tem incompatibilidades mais profundas alem do longintrepr.h)
+    - name: Patch recipe pygame p4a (Python 3.11 compat)
       shell: python3 {0}
       run: |
-        import re, os, sys
+        import re, os, sys, glob
 
         recipe_path = "/home/runner/p4a/pythonforandroid/recipes/pygame/__init__.py"
 
         with open(recipe_path, "r") as f:
             original = f.read()
 
-        print("=== Recipe pygame (primeiras 50 linhas) ===")
-        for i, line in enumerate(original.splitlines()[:50], 1):
+        print("=== Recipe pygame (primeiras 40 linhas) ===")
+        for i, line in enumerate(original.splitlines()[:40], 1):
             print(f"{i:3}: {line}")
-
 
         fix_method = (
             "\n"
             "    def build_compiled_components(self, arch):\n"
-            "        import os\n"
+            "        import os, glob, subprocess\n"
             "        build_dir = self.get_build_dir(arch.arch)\n"
             "\n"
-            "        # Substituir TODOS os .c em src_c/_sdl2/ por stubs minimos.\n"
-            "        # Esses arquivos foram gerados pelo Cython para Python 3.8\n"
-            "        # e causam erros em Python 3.11 (longintrepr.h, CO_NOFREE, etc).\n"
-            "        # O jogo nao usa pygame._sdl2, entao stubs vazios sao seguros.\n"
+            "        # --- FIX 1: Criar shim longintrepr.h ---\n"
+            "        # Python 3.11 removeu longintrepr.h do include dir raiz.\n"
+            "        # Cython-generated .c files (como _sprite.c) fazem:\n"
+            "        #   #include \"longintrepr.h\"\n"
+            "        # Criamos um shim que redireciona para o novo local.\n"
+            "        python_build = os.path.join(\n"
+            "            os.path.dirname(build_dir), '..', 'python3',\n"
+            "            arch.arch + '__ndk_target_21', 'python3', 'Include'\n"
+            "        )\n"
+            "        python_build = os.path.normpath(python_build)\n"
+            "        # Tambem procurar em outros locais possiveis\n"
+            "        possible_dirs = [\n"
+            "            python_build,\n"
+            "            os.path.join(build_dir, '..', '..', '..', 'other_builds',\n"
+            "                         'python3', arch.arch + '__ndk_target_21', 'python3', 'Include'),\n"
+            "        ]\n"
+            "        for inc_dir in possible_dirs:\n"
+            "            inc_dir = os.path.normpath(inc_dir)\n"
+            "            if os.path.isdir(inc_dir):\n"
+            "                shim = os.path.join(inc_dir, 'longintrepr.h')\n"
+            "                if not os.path.exists(shim):\n"
+            "                    cpython_h = os.path.join(inc_dir, 'cpython', 'longintrepr.h')\n"
+            "                    if os.path.exists(cpython_h):\n"
+            "                        with open(shim, 'w') as f:\n"
+            "                            f.write('/* shim */ #include \"cpython/longintrepr.h\"\\n')\n"
+            "                        print('[fix] shim longintrepr.h -> cpython/ em ' + inc_dir)\n"
+            "                    else:\n"
+            "                        # Criar header vazio com typedef minimo\n"
+            "                        with open(shim, 'w') as f:\n"
+            "                            f.write('/* shim longintrepr.h for Python 3.11+ */\\n')\n"
+            "                            f.write('#ifndef Py_LONGINTREPR_H\\n')\n"
+            "                            f.write('#define Py_LONGINTREPR_H\\n')\n"
+            "                            f.write('#include \"Python.h\"\\n')\n"
+            "                            f.write('#if PY_VERSION_HEX >= 0x030C0000\\n')\n"
+            "                            f.write('  #include \"cpython/longintrepr.h\"\\n')\n"
+            "                            f.write('#elif PY_VERSION_HEX >= 0x030B0000\\n')\n"
+            "                            f.write('  typedef uint32_t digit;\\n')\n"
+            "                            f.write('#endif\\n')\n"
+            "                            f.write('#endif\\n')\n"
+            "                        print('[fix] shim longintrepr.h (minimal) em ' + inc_dir)\n"
+            "                else:\n"
+            "                    print('[fix] longintrepr.h ja existe em ' + inc_dir)\n"
+            "        # Tambem colocar o shim no proprio build_dir do pygame\n"
+            "        # para garantir que o compilador encontre via -Isrc_c\n"
+            "        src_c = os.path.join(build_dir, 'src_c')\n"
+            "        shim_local = os.path.join(src_c, 'longintrepr.h')\n"
+            "        if os.path.isdir(src_c) and not os.path.exists(shim_local):\n"
+            "            with open(shim_local, 'w') as f:\n"
+            "                f.write('/* shim longintrepr.h for Python 3.11+ */\\n')\n"
+            "                f.write('#ifndef Py_LONGINTREPR_H\\n')\n"
+            "                f.write('#define Py_LONGINTREPR_H\\n')\n"
+            "                f.write('#include \"Python.h\"\\n')\n"
+            "                f.write('#if PY_VERSION_HEX >= 0x030C0000\\n')\n"
+            "                f.write('  #include \"cpython/longintrepr.h\"\\n')\n"
+            "                f.write('#elif PY_VERSION_HEX >= 0x030B0000\\n')\n"
+            "                f.write('  typedef uint32_t digit;\\n')\n"
+            "                f.write('#endif\\n')\n"
+            "                f.write('#endif\\n')\n"
+            "            print('[fix] shim longintrepr.h em src_c/')\n"
+            "\n"
+            "        # --- FIX 2: Stubs para _sdl2/ ---\n"
+            "        # Os .c em _sdl2/ tem incompatibilidades profundas alem do\n"
+            "        # longintrepr.h (CO_NOFREE, recursion_depth, PyCode_New, etc).\n"
+            "        # O jogo nao usa pygame._sdl2, entao stubs sao seguros.\n"
             "        sdl2_dir = os.path.join(build_dir, 'src_c', '_sdl2')\n"
             "        if os.path.isdir(sdl2_dir):\n"
             "            _fixed = 0\n"
             "            for _fname in os.listdir(sdl2_dir):\n"
             "                if not _fname.endswith('.c'):\n"
             "                    continue\n"
-            "                _modname = _fname[:-2]  # remove .c\n"
+            "                _modname = _fname[:-2]\n"
             "                _stub = (\n"
-            "                    '/* ' + _fname + ' stub - Cython incompativel Python 3.11 */\\n'\n"
+            "                    '/* ' + _fname + ' stub */\\n'\n"
             "                    '#define PY_SSIZE_T_CLEAN\\n'\n"
             "                    '#include \"Python.h\"\\n'\n"
             "                    'static struct PyModuleDef _md = {\\n'\n"
@@ -124,14 +184,11 @@ jobs:
             "                    '    return PyModule_Create(&_md);\\n'\n"
             "                    '}\\n'\n"
             "                )\n"
-            "                _path = os.path.join(sdl2_dir, _fname)\n"
-            "                with open(_path, 'w') as _f:\n"
+            "                with open(os.path.join(sdl2_dir, _fname), 'w') as _f:\n"
             "                    _f.write(_stub)\n"
-            "                print('[fix] substituido por stub: ' + _fname)\n"
+            "                print('[fix] stub: _sdl2/' + _fname)\n"
             "                _fixed += 1\n"
-            "            print('[fix] total de stubs criados: ' + str(_fixed))\n"
-            "        else:\n"
-            "            print('[fix] src_c/_sdl2/ nao existe')\n"
+            "            print('[fix] _sdl2/ stubs: ' + str(_fixed))\n"
             "\n"
             "        super().build_compiled_components(arch)\n"
             "\n"
@@ -161,13 +218,12 @@ jobs:
                 f.write(modified)
             print("=== build_compiled_components INJETADO! ===")
 
-        # Verificar resultado
         with open(recipe_path) as f:
             result = f.read()
         idx = result.find("def build_compiled_components")
         if idx >= 0:
             print("=== Metodo no recipe ===")
-            print(result[idx: idx + 600])
+            print(result[idx: idx + 900])
         else:
             print("ERRO CRITICO: metodo NAO encontrado!")
             sys.exit(1)
