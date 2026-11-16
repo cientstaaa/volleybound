@@ -264,7 +264,7 @@ class FakeKeyboard:
     def __getitem__(self, k): return self._s.get(k, False)
 
 class VirtualJoystick:
-    RAIO_BASE = 70; RAIO_THUMB = 26; DEAD_ZONE = 20
+    RAIO_BASE = 85; RAIO_THUMB = 32; DEAD_ZONE = 22
     def __init__(self, cx, cy):
         self.cx=cx; self.cy=cy
         self.thumb_x=float(cx); self.thumb_y=float(cy)
@@ -317,7 +317,7 @@ class ActionButton:
         self._loaded=True
         try:
             img=pygame.image.load(_asset(f"assets/{self.img_name}.png")).convert_alpha()
-            inner=min(self.rect.w-10,self.rect.h-22)
+            inner=min(self.rect.w-12,self.rect.h-26)
             self._img=pygame.transform.scale(img,(inner,inner))
         except: self._img=None
     def hit(self,px,py): return self.rect.collidepoint(px,py)
@@ -325,32 +325,37 @@ class ActionButton:
         self._load()
         if self._fonte is None:
             try:
-                self._fonte = pygame.font.SysFont(None, 22)
+                self._fonte = pygame.font.SysFont(None, 26)
             except Exception:
-                self._fonte = pygame.font.Font(None, 22)
+                self._fonte = pygame.font.Font(None, 26)
         r,g,b=self.color; bg=pygame.Surface((self.rect.w,self.rect.h),pygame.SRCALPHA)
-        if self.pressed: bg.fill((r,g,b,190))
-        else: bg.fill((r//4,g//4,b//4,150))
-        pygame.draw.rect(bg,(*self.color,230),(0,0,self.rect.w,self.rect.h),2,border_radius=12)
+        if self.pressed: bg.fill((r,g,b,200))
+        else: bg.fill((r//3,g//3,b//3,160))
+        pygame.draw.rect(bg,(*self.color,240),(0,0,self.rect.w,self.rect.h),3,border_radius=14)
         surface.blit(bg,self.rect.topleft)
         if self._img:
             ix=self.rect.x+(self.rect.w-self._img.get_width())//2
-            surface.blit(self._img,(ix,self.rect.y+3))
+            surface.blit(self._img,(ix,self.rect.y+4))
         t=self._fonte.render(self.label,True,(255,255,255))
-        surface.blit(t,(self.rect.x+(self.rect.w-t.get_width())//2,self.rect.bottom-16))
+        surface.blit(t,(self.rect.x+(self.rect.w-t.get_width())//2,self.rect.bottom-20))
 
 class TouchControls:
     def __init__(self,teclas):
         self.teclas=teclas; self.fake_keys=FakeKeyboard()
-        self.joystick=VirtualJoystick(cx=90,cy=ALTURA-78)
-        Y2=ALTURA-82; Y1=ALTURA-152
+        # Joystick mais pro centro (era 90, agora 120)
+        self.joystick=VirtualJoystick(cx=120,cy=ALTURA-100)
+        # Botoes maiores: 110x85 (era 82x70) e 110x75 (era 82x60)
+        BW=110; BH=85; BH2=75; GAP=8
+        # Posicao: mais pra dentro da tela
+        X3=LARGURA-BW-15; X2=X3-BW-GAP; X1=X2-BW-GAP
+        Y2=ALTURA-BH-10; Y1=Y2-BH2-GAP
         Kp=teclas.get("pular"); Kr=teclas.get("recepcao"); Ks=teclas.get("bloquear")
         self.buttons=[
-            ActionButton(Kr,pygame.Rect(LARGURA-318,Y2,82,70),"REC"  ,(40,200,80) ,"receive_button"),
-            ActionButton(Kp,pygame.Rect(LARGURA-228,Y2,82,70),"PULAR",(255,140,0) ,"jump_button"),
-            ActionButton(Ks,pygame.Rect(LARGURA-138,Y2,82,70),"SET"  ,(80,80,255) ,"block_button"),
-            ActionButton(Kr,pygame.Rect(LARGURA-318,Y1,82,60),"DIVE" ,(0,180,220) ,"dive_button"),
-            ActionButton(Kp,pygame.Rect(LARGURA-228,Y1,82,60),"SPIKE",(220,60,60) ,"spike_button"),
+            ActionButton(Kr,pygame.Rect(X1,Y2,BW,BH),"REC"  ,(40,200,80) ,"receive_button"),
+            ActionButton(Kp,pygame.Rect(X2,Y2,BW,BH),"PULAR",(255,160,0) ,"jump_button"),
+            ActionButton(Ks,pygame.Rect(X3,Y2,BW,BH),"SET"  ,(80,100,255),"block_button"),
+            ActionButton(Kr,pygame.Rect(X1,Y1,BW,BH2),"DIVE" ,(0,190,230) ,"dive_button"),
+            ActionButton(Kp,pygame.Rect(X2,Y1,BW,BH2),"SPIKE",(230,60,60) ,"spike_button"),
         ]
         self._finger_btn={}
     def handle_fingerdown(self,px,py,fid):
