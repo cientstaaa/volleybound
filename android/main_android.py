@@ -477,6 +477,8 @@ CAMPO_X_MIN = CAMPO_MARGEM
 
 CAMPO_X_MAX = LARGURA - CAMPO_MARGEM
 
+_escala_mobile = LARGURA / 1100.0  # fator de escala para velocidades no mobile
+
 
 
 config_slots = [
@@ -851,13 +853,14 @@ def novo_jogo():
 
 
     # --- Escalar velocidades para tela mobile (maior que 1100x600 do PC) ---
-    _escala = LARGURA / 1100.0
-    if _escala > 1.05:  # so aplica se a tela for significativamente maior
+    global _escala_mobile
+    _escala_mobile = LARGURA / 1100.0
+    if _escala_mobile > 1.05:  # so aplica se a tela for significativamente maior
         for _j in time_esquerda + time_direita:
-            _j.velocidade = int(round(_j.velocidade * _escala))
-            _j.forca_pulo = _j.forca_pulo * _escala
-            _j.gravidade = _j.gravidade * _escala
-            _j.velocidade_deslize = int(round(_j.velocidade_deslize * _escala))
+            _j.velocidade = int(round(_j.velocidade * _escala_mobile))
+            _j.forca_pulo = _j.forca_pulo * _escala_mobile
+            _j.gravidade = _j.gravidade * _escala_mobile
+            _j.velocidade_deslize = int(round(_j.velocidade_deslize * _escala_mobile))
 
     placar_esquerda = 0
 
@@ -1034,10 +1037,10 @@ def iniciar_saque(lado_do_saque):
     bola.vel_y = 0
 
     # Escalar velocidade da bola para tela mobile
-    if _escala > 1.05:
-        bola.gravidade = bola.gravidade * _escala
-        bola.velocidade_maxima = bola.velocidade_maxima * _escala
-        bola.escala_vel = _escala
+    if _escala_mobile > 1.05:
+        bola.gravidade = bola.gravidade * _escala_mobile
+        bola.velocidade_maxima = bola.velocidade_maxima * _escala_mobile
+        bola.escala_vel = _escala_mobile
 
 
 
