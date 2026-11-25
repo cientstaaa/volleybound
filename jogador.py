@@ -365,6 +365,7 @@ class Jogador:
         tecla_pular    = self.teclas["pular"]
         tecla_bloquear = self.teclas.get("bloquear")  # Space/RShift: toque_ar no ar
         tecla_recepcao = self.teclas.get("recepcao")  # S/Baixo: recepcao dedicada + peixinho
+        tecla_peixinho = self.teclas.get("peixinho")  # Q: peixinho forçado (mobile)
 
         pular_pressionado_agora      = teclas_pressionadas[tecla_pular]
         pular_apertado_este_frame    = pular_pressionado_agora and not self._pular_pressionado_antes
@@ -372,6 +373,12 @@ class Jogador:
         # tecla recepcao (S/Baixo): rastreada em _peixinho_pressionado_antes
         recepcao_pressionada_agora   = tecla_recepcao is not None and teclas_pressionadas[tecla_recepcao]
         recepcao_apertada_este_frame = recepcao_pressionada_agora and not self._peixinho_pressionado_antes
+
+        # tecla peixinho dedicada (Q no mobile)
+        peixinho_pressionado_agora   = tecla_peixinho is not None and teclas_pressionadas[tecla_peixinho]
+        peixinho_apertado_este_frame = peixinho_pressionado_agora and not (
+            self._peixinho_dedicado_antes if hasattr(self, '_peixinho_dedicado_antes') else False
+        )
 
         # tecla bloquear (Space/RShift): rastreada em _recepcao_pressionada_antes
         bloquear_pressionado_agora   = tecla_bloquear is not None and teclas_pressionadas[tecla_bloquear]
@@ -383,6 +390,39 @@ class Jogador:
 
         if self.no_chao:
             # --- ACOES NO CHAO ---
+
+            # Tecla peixinho dedicada (mobile: botao separado)
+            # Sempre faz peixinho independente de direcao
+            if peixinho_apertado_este_frame:
+                ALCANCE_MERGULHO = 150
+                segura_esquerda = teclas_pressionadas[self.teclas["esquerda"]]
+                segura_direita  = teclas_pressionadas[self.teclas["direita"]]
+                if segura_esquerda and not segura_direita:
+                    self.mergulho_direcao  = -1
+                    self.mergulho_restante = ALCANCE_MERGULHO
+                elif segura_direita and not segura_esquerda:
+                    self.mergulho_direcao  = 1
+                    self.mergulho_restante = ALCANCE_MERGULHO
+                elif bola is not None:
+                    self.mergulho_direcao  = 1 if bola.x > self.x else -1
+                    self.mergulho_restante = min(ALCANCE_MERGULHO,
+                                                 abs(bola.x - (self.x + self.largura / 2)))
+                else:
+                    self.mergulho_direcao  = 1 if self.lado == "esquerda" else -1
+                    self.mergulho_restante = ALCANCE_MERGULHO
+
+                self.deslizando  = True
+                self.mergulhando = True
+                self.direcao_peixinho = "direita" if self.mergulho_direcao == 1 else "esquerda"
+                self.atacando   = False
+                self.bloqueando = False
+                self._ativar_toque("recepcao", frames=20)
+
+                self._pular_pressionado_antes    = pular_pressionado_agora
+                self._peixinho_pressionado_antes = recepcao_pressionada_agora
+                self._peixinho_dedicado_antes    = peixinho_pressionado_agora
+                self._recepcao_pressionada_antes = bloquear_pressionado_agora
+                return
 
             # S/Baixo -> recepcao dedicada:
 #   COM direcao (A/D ou Esq/Dir) -> peixinho/mergulho
@@ -450,6 +490,7 @@ class Jogador:
 
         self._pular_pressionado_antes    = pular_pressionado_agora
         self._peixinho_pressionado_antes = recepcao_pressionada_agora
+        self._peixinho_dedicado_antes    = peixinho_pressionado_agora
         self._recepcao_pressionada_antes = bloquear_pressionado_agora
 
         self.vel_y += self.gravidade

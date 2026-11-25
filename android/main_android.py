@@ -343,9 +343,10 @@ class TouchControls:
         Kp = teclas.get("pular")
         Kr = teclas.get("recepcao")
         Ks = teclas.get("bloquear")
-        self.btn_left   = ActionButton(Kr, pygame.Rect(X1, Y, BW, BH), "PEIXINHO", (0, 190, 230))
+        Kpx = teclas.get("peixinho")  # tecla separada para peixinho
+        self.btn_left   = ActionButton(Kpx, pygame.Rect(X1, Y, BW, BH), "PEIXINHO", (0, 190, 230))
         self.btn_center = ActionButton(Kp, pygame.Rect(X2, Y, BW, BH), "PULAR",    (255, 160, 0))
-        self.btn_right  = ActionButton(Ks, pygame.Rect(X3, Y, BW, BH), "REC",      (40, 200, 80))
+        self.btn_right  = ActionButton(Kr, pygame.Rect(X3, Y, BW, BH), "REC",      (40, 200, 80))
         self.buttons = [self.btn_left, self.btn_center, self.btn_right]
         self._finger_btn = {}
         self._no_chao = True
@@ -357,10 +358,11 @@ class TouchControls:
         Kp = self.teclas.get("pular")
         Ks = self.teclas.get("bloquear")
         Kr = self.teclas.get("recepcao")
+        Kpx = self.teclas.get("peixinho")
         if no_chao:
-            self.btn_left.label = "PEIXINHO"; self.btn_left.key = Kr; self.btn_left.color = (0, 190, 230); self.btn_left.visible = True
+            self.btn_left.label = "PEIXINHO"; self.btn_left.key = Kpx; self.btn_left.color = (0, 190, 230); self.btn_left.visible = True
             self.btn_center.label = "PULAR";  self.btn_center.key = Kp; self.btn_center.color = (255, 160, 0)
-            self.btn_right.label = "REC";     self.btn_right.key = Ks; self.btn_right.color = (40, 200, 80)
+            self.btn_right.label = "REC";     self.btn_right.key = Kr; self.btn_right.color = (40, 200, 80)
         else:
             self.btn_left.visible = False
             self.btn_center.label = "ATACAR"; self.btn_center.key = Kp; self.btn_center.color = (230, 60, 60)
@@ -453,7 +455,7 @@ SAQUE_VIAGEM_TOSS_VEL_Y = -15  # forca do "toss" da bola pra cima, no saque de v
 
 
 
-teclas_j1 = {"esquerda": pygame.K_a, "direita": pygame.K_d, "pular": pygame.K_w, "bloquear": pygame.K_SPACE, "recepcao": pygame.K_s}
+teclas_j1 = {"esquerda": pygame.K_a, "direita": pygame.K_d, "pular": pygame.K_w, "bloquear": pygame.K_SPACE, "recepcao": pygame.K_s, "peixinho": pygame.K_q}
 
 teclas_j2 = {"esquerda": pygame.K_LEFT, "direita": pygame.K_RIGHT, "pular": pygame.K_UP, "bloquear": pygame.K_RSHIFT, "recepcao": pygame.K_DOWN}
 
