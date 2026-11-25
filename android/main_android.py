@@ -19,7 +19,7 @@ if ANDROID:
     os.environ.setdefault('SDL_AUDIODRIVER', 'dummy')
 
 # ---------------------------------------------------------------------------
-# Log de diagnostico — escreve passo a passo num arquivo acessivel pelo
+# Log de diagnostico â€” escreve passo a passo num arquivo acessivel pelo
 # gerenciador de arquivos do celular em:
 #   /sdcard/Android/data/org.volleybound/files/vb_debug.txt
 # Util para saber onde o crash nativo acontece (SIGSEGV nao e capturado pelo
@@ -115,7 +115,7 @@ from jogador import Jogador, _carregar_com_cor
 
 _dbg("[4] imports do jogo ok")
 
-# Base absoluta para assets — SDL2 no Android pode ignorar os.chdir() do Python
+# Base absoluta para assets â€” SDL2 no Android pode ignorar os.chdir() do Python
 _ASSET_BASE = os.path.dirname(os.path.abspath(__file__))
 def _asset(rel_path):
     """Converte 'assets/foo.png' em caminho absoluto."""
@@ -177,7 +177,7 @@ def _mostrar_erro_tela(msg):
 try:
     _dbg("[5] iniciando pygame...")
     if ANDROID:
-        # Usa pygame.init() completo — mais compativel com p4a do que inits individuais
+        # Usa pygame.init() completo â€” mais compativel com p4a do que inits individuais
         # SDL_AUDIODRIVER=dummy ja foi definido ANTES do import, entao audio nao crasha
         result = pygame.init()
         _dbg(f"[6] pygame.init() ok: {result}")
@@ -263,120 +263,135 @@ class FakeKeyboard:
         if k is not None: self._s[k] = v
     def __getitem__(self, k): return self._s.get(k, False)
 
-class VirtualJoystick:
-    RAIO_BASE = 85; RAIO_THUMB = 32; DEAD_ZONE = 22
+class HorizontalJoystick:
+    """Joystick horizontal â€” so esquerda/direita, sem eixo vertical."""
+    WIDTH = 220; HEIGHT = 70; THUMB_W = 56; THUMB_H = 56; DEAD_ZONE = 25
     def __init__(self, cx, cy):
-        self.cx=cx; self.cy=cy
-        self.thumb_x=float(cx); self.thumb_y=float(cy)
-        self.finger_id=None; self._ox=float(cx); self._oy=float(cy)
-        self._img=None; self._loaded=False
-    def _load(self):
-        if self._loaded: return
-        self._loaded=True
-        try:
-            img=pygame.image.load(_asset("assets/joystick_base.png")).convert_alpha()
-            d=self.RAIO_BASE*2+12; self._img=pygame.transform.scale(img,(d,d))
-        except: self._img=None
-    def handle_fingerdown(self,px,py,fid):
-        if (px-self.cx)**2+(py-self.cy)**2<=(self.RAIO_BASE+40)**2:
-            self.finger_id=fid; self._ox=px; self._oy=py
-            self.thumb_x=px; self.thumb_y=py; return True
+        self.cx = cx; self.cy = cy
+        self.thumb_x = float(cx)
+        self.finger_id = None; self._ox = float(cx)
+        self.rect = pygame.Rect(cx - self.WIDTH//2, cy - self.HEIGHT//2, self.WIDTH, self.HEIGHT)
+    def handle_fingerdown(self, px, py, fid):
+        hit = pygame.Rect(self.rect.x - 30, self.rect.y - 30, self.rect.w + 60, self.rect.h + 60)
+        if hit.collidepoint(px, py):
+            self.finger_id = fid; self._ox = px; self.thumb_x = px
+            half = self.WIDTH // 2
+            self.thumb_x = max(self.cx - half, min(self.cx + half, self.thumb_x))
+            return True
         return False
-    def handle_fingermotion(self,px,py,fid):
-        if fid!=self.finger_id: return
-        import math
-        dx=px-self._ox; dy=py-self._oy; dist=math.hypot(dx,dy)
-        if dist>self.RAIO_BASE: s=self.RAIO_BASE/dist; dx*=s; dy*=s
-        self.thumb_x=self.cx+dx; self.thumb_y=self.cy+dy
-    def handle_fingerup(self,fid):
-        if fid==self.finger_id:
-            self.finger_id=None; self.thumb_x=float(self.cx); self.thumb_y=float(self.cy)
+    def handle_fingermotion(self, px, py, fid):
+        if fid != self.finger_id: return
+        half = self.WIDTH // 2
+        self.thumb_x = max(self.cx - half, min(self.cx + half, float(px)))
+    def handle_fingerup(self, fid):
+        if fid == self.finger_id:
+            self.finger_id = None; self.thumb_x = float(self.cx)
     def get_direction(self):
-        if self.finger_id is None: return False,False
-        dx=self.thumb_x-self.cx; return dx<-self.DEAD_ZONE, dx>self.DEAD_ZONE
-    def draw(self,surface):
-        self._load(); r=self.RAIO_BASE
-        if self._img:
-            surface.blit(self._img,(self.cx-self._img.get_width()//2,self.cy-self._img.get_height()//2))
-        else:
-            s=pygame.Surface((r*2,r*2),pygame.SRCALPHA)
-            pygame.draw.circle(s,(20,40,80,140),(r,r),r)
-            pygame.draw.circle(s,(60,120,200,200),(r,r),r,3); surface.blit(s,(self.cx-r,self.cy-r))
-        t=self.RAIO_THUMB; ts=pygame.Surface((t*2,t*2),pygame.SRCALPHA)
-        pygame.draw.circle(ts,(80,160,255,220),(t,t),t)
-        pygame.draw.circle(ts,(200,230,255,200),(t,t),t//2)
-        surface.blit(ts,(int(self.thumb_x-t),int(self.thumb_y-t)))
+        if self.finger_id is None: return False, False
+        dx = self.thumb_x - self.cx
+        return dx < -self.DEAD_ZONE, dx > self.DEAD_ZONE
+    def draw(self, surface):
+        track = pygame.Surface((self.WIDTH, self.HEIGHT), pygame.SRCALPHA)
+        pygame.draw.rect(track, (20, 35, 70, 150), (0, 0, self.WIDTH, self.HEIGHT), border_radius=self.HEIGHT//2)
+        pygame.draw.rect(track, (60, 120, 200, 200), (0, 0, self.WIDTH, self.HEIGHT), 3, border_radius=self.HEIGHT//2)
+        ay = self.HEIGHT // 2
+        pygame.draw.polygon(track, (100, 160, 220, 120), [(18, ay), (30, ay-10), (30, ay+10)])
+        pygame.draw.polygon(track, (100, 160, 220, 120), [(self.WIDTH-18, ay), (self.WIDTH-30, ay-10), (self.WIDTH-30, ay+10)])
+        surface.blit(track, self.rect.topleft)
+        tw, th = self.THUMB_W, self.THUMB_H
+        ts = pygame.Surface((tw, th), pygame.SRCALPHA)
+        pygame.draw.ellipse(ts, (80, 160, 255, 220), (0, 0, tw, th))
+        pygame.draw.ellipse(ts, (180, 220, 255, 200), (tw//4, th//4, tw//2, th//2))
+        surface.blit(ts, (int(self.thumb_x - tw//2), int(self.cy - th//2)))
 
 class ActionButton:
-    def __init__(self,key,rect,label,color,img_name):
-        self.key=key; self.rect=rect; self.label=label
-        self.color=color; self.img_name=img_name
-        self._img=None; self._loaded=False; self.pressed=False; self._fonte=None
-    def _load(self):
-        if self._loaded: return
-        self._loaded=True
-        try:
-            img=pygame.image.load(_asset(f"assets/{self.img_name}.png")).convert_alpha()
-            inner=min(self.rect.w-12,self.rect.h-26)
-            self._img=pygame.transform.scale(img,(inner,inner))
-        except: self._img=None
-    def hit(self,px,py): return self.rect.collidepoint(px,py)
-    def draw(self,surface):
-        self._load()
+    """Botao de acao desenhado programaticamente (sem PNG)."""
+    def __init__(self, key, rect, label, color):
+        self.key = key; self.rect = rect; self.label = label
+        self.color = color; self.pressed = False; self._fonte = None
+        self.visible = True
+    def hit(self, px, py):
+        return self.visible and self.rect.collidepoint(px, py)
+    def draw(self, surface):
+        if not self.visible:
+            return
         if self._fonte is None:
-            try:
-                self._fonte = pygame.font.SysFont(None, 26)
-            except Exception:
-                self._fonte = pygame.font.Font(None, 26)
-        r,g,b=self.color; bg=pygame.Surface((self.rect.w,self.rect.h),pygame.SRCALPHA)
-        if self.pressed: bg.fill((r,g,b,200))
-        else: bg.fill((r//3,g//3,b//3,160))
-        pygame.draw.rect(bg,(*self.color,240),(0,0,self.rect.w,self.rect.h),3,border_radius=14)
-        surface.blit(bg,self.rect.topleft)
-        if self._img:
-            ix=self.rect.x+(self.rect.w-self._img.get_width())//2
-            surface.blit(self._img,(ix,self.rect.y+4))
-        t=self._fonte.render(self.label,True,(255,255,255))
-        surface.blit(t,(self.rect.x+(self.rect.w-t.get_width())//2,self.rect.bottom-20))
+            try: self._fonte = pygame.font.SysFont(None, 30)
+            except: self._fonte = pygame.font.Font(None, 30)
+        r, g, b = self.color
+        bg = pygame.Surface((self.rect.w, self.rect.h), pygame.SRCALPHA)
+        if self.pressed:
+            bg.fill((r, g, b, 210))
+        else:
+            bg.fill((r//3, g//3, b//3, 170))
+        pygame.draw.rect(bg, (*self.color, 240), (0, 0, self.rect.w, self.rect.h), 3, border_radius=16)
+        surface.blit(bg, self.rect.topleft)
+        t = self._fonte.render(self.label, True, (255, 255, 255))
+        tx = self.rect.x + (self.rect.w - t.get_width()) // 2
+        ty = self.rect.y + (self.rect.h - t.get_height()) // 2
+        surface.blit(t, (tx, ty))
 
 class TouchControls:
-    def __init__(self,teclas):
-        self.teclas=teclas; self.fake_keys=FakeKeyboard()
-        # Joystick mais pro centro (era 90, agora 120)
-        self.joystick=VirtualJoystick(cx=120,cy=ALTURA-100)
-        # Botoes maiores: 110x85 (era 82x70) e 110x75 (era 82x60)
-        BW=110; BH=85; BH2=75; GAP=8
-        # Posicao: mais pra dentro da tela
-        X3=LARGURA-BW-15; X2=X3-BW-GAP; X1=X2-BW-GAP
-        Y2=ALTURA-BH-10; Y1=Y2-BH2-GAP
-        Kp=teclas.get("pular"); Kr=teclas.get("recepcao"); Ks=teclas.get("bloquear")
-        self.buttons=[
-            ActionButton(Kr,pygame.Rect(X1,Y2,BW,BH),"REC"  ,(40,200,80) ,"receive_button"),
-            ActionButton(Kp,pygame.Rect(X2,Y2,BW,BH),"PULAR",(255,160,0) ,"jump_button"),
-            ActionButton(Ks,pygame.Rect(X3,Y2,BW,BH),"SET"  ,(80,100,255),"block_button"),
-            ActionButton(Kr,pygame.Rect(X1,Y1,BW,BH2),"DIVE" ,(0,190,230) ,"dive_button"),
-            ActionButton(Kp,pygame.Rect(X2,Y1,BW,BH2),"SPIKE",(230,60,60) ,"spike_button"),
-        ]
-        self._finger_btn={}
-    def handle_fingerdown(self,px,py,fid):
-        if px<LARGURA//2: self.joystick.handle_fingerdown(px,py,fid); return
+    def __init__(self, teclas):
+        self.teclas = teclas
+        self.fake_keys = FakeKeyboard()
+        self.joystick = HorizontalJoystick(cx=140, cy=ALTURA - 80)
+        # 3 botoes contextuais (mudam chao/ar)
+        BW = 120; BH = 90; GAP = 10
+        X3 = LARGURA - BW - 20; X2 = X3 - BW - GAP; X1 = X2 - BW - GAP
+        Y = ALTURA - BH - 15
+        Kp = teclas.get("pular")
+        Kr = teclas.get("recepcao")
+        Ks = teclas.get("bloquear")
+        self.btn_left   = ActionButton(Kr, pygame.Rect(X1, Y, BW, BH), "PEIXINHO", (0, 190, 230))
+        self.btn_center = ActionButton(Kp, pygame.Rect(X2, Y, BW, BH), "PULAR",    (255, 160, 0))
+        self.btn_right  = ActionButton(Ks, pygame.Rect(X3, Y, BW, BH), "REC",      (40, 200, 80))
+        self.buttons = [self.btn_left, self.btn_center, self.btn_right]
+        self._finger_btn = {}
+        self._no_chao = True
+    def set_player_state(self, no_chao):
+        """Atualiza botoes conforme jogador esta no chao ou no ar."""
+        if no_chao == self._no_chao:
+            return
+        self._no_chao = no_chao
+        Kp = self.teclas.get("pular")
+        Ks = self.teclas.get("bloquear")
+        Kr = self.teclas.get("recepcao")
+        if no_chao:
+            self.btn_left.label = "PEIXINHO"; self.btn_left.key = Kr; self.btn_left.color = (0, 190, 230); self.btn_left.visible = True
+            self.btn_center.label = "PULAR";  self.btn_center.key = Kp; self.btn_center.color = (255, 160, 0)
+            self.btn_right.label = "REC";     self.btn_right.key = Ks; self.btn_right.color = (40, 200, 80)
+        else:
+            self.btn_left.visible = False
+            self.btn_center.label = "ATACAR"; self.btn_center.key = Kp; self.btn_center.color = (230, 60, 60)
+            self.btn_right.label = "SET";     self.btn_right.key = Ks; self.btn_right.color = (80, 100, 255)
+    def handle_fingerdown(self, px, py, fid):
+        if px < LARGURA // 2:
+            self.joystick.handle_fingerdown(px, py, fid)
+            return
         for btn in self.buttons:
-            if btn.hit(px,py): btn.pressed=True; self._finger_btn[fid]=btn; self.fake_keys.set(btn.key,True); return
-    def handle_fingermotion(self,px,py,fid): self.joystick.handle_fingermotion(px,py,fid)
-    def handle_fingerup(self,fid):
+            if btn.hit(px, py):
+                btn.pressed = True; self._finger_btn[fid] = btn
+                self.fake_keys.set(btn.key, True); return
+    def handle_fingermotion(self, px, py, fid):
+        self.joystick.handle_fingermotion(px, py, fid)
+    def handle_fingerup(self, fid):
         self.joystick.handle_fingerup(fid)
-        btn=self._finger_btn.pop(fid,None)
+        btn = self._finger_btn.pop(fid, None)
         if btn:
-            btn.pressed=False
-            if not any(b.key==btn.key for b in self._finger_btn.values()): self.fake_keys.set(btn.key,False)
+            btn.pressed = False
+            if not any(b.key == btn.key for b in self._finger_btn.values()):
+                self.fake_keys.set(btn.key, False)
     def update(self):
-        left,right=self.joystick.get_direction()
-        self.fake_keys.set(self.teclas.get("esquerda"),left)
-        self.fake_keys.set(self.teclas.get("direita"),right)
+        left, right = self.joystick.get_direction()
+        self.fake_keys.set(self.teclas.get("esquerda"), left)
+        self.fake_keys.set(self.teclas.get("direita"), right)
     def get_fake_keys(self): return self.fake_keys
-    def draw(self,surface):
+    def draw(self, surface):
         self.joystick.draw(surface)
-        for btn in self.buttons: btn.draw(surface)
+        for btn in self.buttons:
+            btn.draw(surface)
+
 
 class PauseButton:
     def __init__(self): self.rect=pygame.Rect(LARGURA-52,8,44,44)
@@ -405,7 +420,7 @@ class BackButton:
 
 back_btn = BackButton()
 
-# Debounce para menus — impede que toques rapidos (ou eventos duplicados SDL2)
+# Debounce para menus â€” impede que toques rapidos (ou eventos duplicados SDL2)
 # avancem mais de uma tela por vez. Guarda o timestamp do ultimo toque aceito.
 _menu_last_touch_ms = 0
 _MENU_DEBOUNCE_MS = 200  # 200ms de cooldown entre toques
@@ -1947,6 +1962,14 @@ while rodando:
     # ============ ESTADO: TITULO ============
 
     touch_controls.update()
+    # Atualizar botoes contextuais (chao/ar) baseado no jogador humano
+    if estado in ("jogando", "saque", "saque_viagem"):
+        _p1 = None
+        for _j in time_esquerda + time_direita:
+            if _j.teclas is not None:
+                _p1 = _j; break
+        if _p1 is not None:
+            touch_controls.set_player_state(_p1.no_chao)
     menu_frame += 1
 
 
@@ -2989,7 +3012,7 @@ while rodando:
     # ============ ESTADO: PAUSADO ============
 
     elif estado == "pausado":
-
+ 
         desenhar_quadra()
 
         for jogador in time_esquerda + time_direita:
