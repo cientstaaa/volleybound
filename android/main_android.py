@@ -850,6 +850,14 @@ def novo_jogo():
             time_direita.append(jogador)
 
 
+    # --- Escalar velocidades para tela mobile (maior que 1100x600 do PC) ---
+    _escala = LARGURA / 1100.0
+    if _escala > 1.05:  # so aplica se a tela for significativamente maior
+        for _j in time_esquerda + time_direita:
+            _j.velocidade = int(round(_j.velocidade * _escala))
+            _j.forca_pulo = _j.forca_pulo * _escala
+            _j.gravidade = _j.gravidade * _escala
+            _j.velocidade_deslize = int(round(_j.velocidade_deslize * _escala))
 
     placar_esquerda = 0
 
@@ -1024,6 +1032,12 @@ def iniciar_saque(lado_do_saque):
     bola.vel_x = 0
 
     bola.vel_y = 0
+
+    # Escalar velocidade da bola para tela mobile
+    if _escala > 1.05:
+        bola.gravidade = bola.gravidade * _escala
+        bola.velocidade_maxima = bola.velocidade_maxima * _escala
+        bola.escala_vel = _escala
 
 
 

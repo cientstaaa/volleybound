@@ -63,6 +63,7 @@ class Bola:
         self.gravidade = 0.5
         self.amortecimento = 0.75
         self.velocidade_maxima = 20
+        self.escala_vel = 1.0  # fator de escala para telas maiores (mobile)
         self.contatos = {}
         self.ultimo_tocador_id = None
         self._imunidade_toque = {}
@@ -254,8 +255,8 @@ class Bola:
                     else:
                         vel_y *= random.uniform(1.2, 1.6)
 
-                self.vel_x = vel_x
-                self.vel_y = vel_y
+                self.vel_x = vel_x * self.escala_vel
+                self.vel_y = vel_y * self.escala_vel
                 self.ultimo_tocador_id = id(jogador)
                 self._imunidade_toque[id(jogador)] = 8
 
