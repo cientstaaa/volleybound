@@ -425,13 +425,14 @@ class Jogador:
                 return
 
             # S/Baixo -> recepcao dedicada:
-#   COM direcao (A/D ou Esq/Dir) -> peixinho/mergulho
-#   SEM direcao                  -> recepcao em pe (janela de 40 frames)
+            # Se existe tecla "peixinho" separada (mobile), K_s sempre faz recepcao.
+            # No PC (sem tecla peixinho), K_s com direcao faz peixinho.
+            _tem_peixinho_dedicado = tecla_peixinho is not None
             if recepcao_apertada_este_frame:
                 segura_esquerda = teclas_pressionadas[self.teclas["esquerda"]]
                 segura_direita  = teclas_pressionadas[self.teclas["direita"]]
 
-                if segura_esquerda or segura_direita:
+                if (segura_esquerda or segura_direita) and not _tem_peixinho_dedicado:
                     # --- PEIXINHO ---
                     ALCANCE_MERGULHO = 150
                     if segura_esquerda and not segura_direita:
