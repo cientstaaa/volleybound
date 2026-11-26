@@ -80,23 +80,6 @@ volleybound/
 └── .github/workflows/
     └── build_apk.yml    # Build automático do APK
 ```
-
-### Rodar no PC (desenvolvimento)
-```bash
-# Requer Python 3.10+ e pygame
-pip install pygame-ce
-python pc/main.py
-```
-
-### Gerar executável Windows
-```bash
-pip install pyinstaller
-python -m PyInstaller pc/VolleyballGame.spec
-```
-
-### Gerar APK Android
-O APK é gerado automaticamente pelo **GitHub Actions** a cada push no branch `master`.
-
 ---
 
 ## 📄 Licença
