@@ -1,11 +1,12 @@
 # -*- mode: python ; coding: utf-8 -*-
-
+import os
+_ROOT = os.path.abspath(os.path.join(SPECPATH, '..'))
 
 a = Analysis(
-    ['main.py'],
-    pathex=[],
+    [os.path.join(SPECPATH, 'main.py')],
+    pathex=[_ROOT],
     binaries=[],
-    datas=[('assets', 'assets')],
+    datas=[(os.path.join(_ROOT, 'assets'), 'assets')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -32,7 +33,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['assets/icon.ico'],
+    icon=[os.path.join(_ROOT, 'assets', 'icon.ico')],
 )
 coll = COLLECT(
     exe,

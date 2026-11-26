@@ -1,44 +1,55 @@
 # VolleyBound 🏐
 
-Jogo de vôlei 2D feito com Python + Pygame.
+Jogo de vôlei 2D feito em Python com Pygame.
 
 ## Estrutura do Projeto
 
 ```
 volleyball_game_V2.1/
-├── pc/
-│   ├── main.py           # Versão PC (teclado)
-│   ├── main_mobile.py    # Versão PC com layout mobile
-│   └── VolleyballGame.spec  # Config PyInstaller (gerar .exe)
-│
-├── android/
-│   └── main_android.py   # Versão Android (controles touch)
-│
-├── tools/
-│   ├── serve_mobile.py          # Servidor local para testes web
-│   └── converter_sprites_base.py  # Converte sprites para palette swap
-│
-├── assets/           # Imagens e sons compartilhados
-├── bola.py           # Módulo compartilhado: física da bola
-├── jogador.py        # Módulo compartilhado: lógica do jogador
-├── constantes.py     # Módulo compartilhado: constantes globais
-├── buildozer.spec    # Config do build Android
-└── .github/
-    └── workflows/
-        └── build_apk.yml  # GitHub Actions: gera o APK automaticamente
+├── bola.py              # Lógica da bola (compartilhado)
+├── jogador.py           # Lógica do jogador (compartilhado)
+├── constantes.py        # Constantes do jogo (compartilhado)
+├── assets/              # Sprites, sons e fundos
+├── android/             # Versão Android (APK via GitHub Actions)
+│   ├── main_android.py
+│   ├── buildozer.spec
+│   └── icon.png
+├── pc/                  # Versão PC (executável via PyInstaller)
+│   ├── main.py
+│   ├── COMO_JOGAR.txt
+│   └── VolleyballGame.spec
+├── tools/               # Scripts utilitários
+└── .github/workflows/
+    └── build_apk.yml    # Build automático do APK
 ```
 
-## Como Rodar
+## Como Jogar
 
 ### PC
 ```bash
 python pc/main.py
 ```
+Ou gere o executável:
+```bash
+cd pc && python -m PyInstaller VolleyballGame.spec
+```
 
-### Android (APK)
-O APK é gerado automaticamente pelo GitHub Actions a cada push na branch `master`.
-Acesse **Actions → Build Android APK → Artifacts** para baixar o APK.
+Veja `pc/COMO_JOGAR.txt` para controles detalhados.
 
-## Dependências
-- Python 3.11+
-- pygame 2.6+
+### Android
+O APK é gerado automaticamente pelo GitHub Actions a cada push.
+Baixe na aba **Actions** > **Build APK** > **Artifacts**.
+
+## Controles (PC)
+
+| Ação | Jogador 1 | Jogador 2 |
+|------|-----------|-----------|
+| Mover | A / D | ← / → |
+| Pular | W | ↑ |
+| Recepção | S | ↓ |
+| Peixinho | Q | Ctrl Dir |
+| Bloqueio/Ataque | Espaço | Shift Dir |
+
+## Modos de Jogo
+- **Partida Rápida** — jogue contra a CPU ou com um amigo
+- **Torneio** — enfrente adversários cada vez mais fortes

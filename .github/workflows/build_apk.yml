@@ -22,7 +22,7 @@ jobs:
         path: |
           ~/.buildozer
           .buildozer/android/platform/build-arm64-v8a
-        key: bz-${{ runner.os }}-v2024.01.21-pygame210-v10-${{ hashFiles('buildozer.spec') }}
+        key: bz-${{ runner.os }}-v2024.01.21-pygame210-v10-${{ hashFiles('android/buildozer.spec') }}
         restore-keys: |
           bz-${{ runner.os }}-v2024.01.21-pygame210-v10-
 
@@ -244,6 +244,8 @@ jobs:
     - name: Preparar main.py para Android
       run: |
         cp android/main_android.py main.py
+        cp android/buildozer.spec buildozer.spec
+        cp android/icon.png icon.png
         echo "main.py = android/main_android.py ($(wc -l < main.py) linhas)"
 
     - name: Build APK
