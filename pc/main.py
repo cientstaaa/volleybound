@@ -48,8 +48,8 @@ CARGA_MINIMA_EFETIVA = 0.35  # piso de força: mesmo soltando rápido, o saque s
 SAQUE_VIAGEM_LIMIAR = 35  # frames segurando o botão pra virar saque de viagem (em vez do padrão)
 SAQUE_VIAGEM_TOSS_VEL_Y = -15  # força do "toss" da bola pra cima, no saque de viagem
 
-teclas_j1 = {"esquerda": pygame.K_a, "direita": pygame.K_d, "pular": pygame.K_w, "bloquear": pygame.K_SPACE, "recepcao": pygame.K_s}
-teclas_j2 = {"esquerda": pygame.K_LEFT, "direita": pygame.K_RIGHT, "pular": pygame.K_UP, "bloquear": pygame.K_RSHIFT, "recepcao": pygame.K_DOWN}
+teclas_j1 = {"esquerda": pygame.K_a, "direita": pygame.K_d, "pular": pygame.K_w, "bloquear": pygame.K_SPACE, "recepcao": pygame.K_s, "peixinho": pygame.K_q}
+teclas_j2 = {"esquerda": pygame.K_LEFT, "direita": pygame.K_RIGHT, "pular": pygame.K_UP, "bloquear": pygame.K_RSHIFT, "recepcao": pygame.K_DOWN, "peixinho": pygame.K_RCTRL}
 
 REDE_X = LARGURA // 2 - 5
 REDE_Y = ALTURA - 200

@@ -1,0 +1,110 @@
+╔══════════════════════════════════════════════════════════════╗
+║                    VOLLEYBOUND - COMO JOGAR                 ║
+╚══════════════════════════════════════════════════════════════╝
+
+══════════════════════════════════════════════════════════════
+                         CONTROLES
+══════════════════════════════════════════════════════════════
+
+  JOGADOR 1 (WASD)                JOGADOR 2 (SETAS)
+  ─────────────────               ──────────────────
+  A / D    = Mover                ← / →     = Mover
+  W        = Pular                ↑         = Pular
+  S        = Recepção             ↓         = Recepção
+  Q        = Peixinho (mergulho)  Ctrl Dir  = Peixinho (mergulho)
+  Espaço   = Bloqueio/Ataque      Shift Dir = Bloqueio/Ataque
+
+  MENUS
+  ─────
+  Espaço / Enter  = Confirmar / Avançar
+  Setas ← →       = Navegar opções
+  ESC              = Voltar / Pausar
+
+══════════════════════════════════════════════════════════════
+                       COMO FUNCIONA
+══════════════════════════════════════════════════════════════
+
+  O jogo segue as regras básicas do vôlei:
+
+  • Cada time tem até 3 toques para devolver a bola
+  • A bola não pode cair no seu lado da quadra
+  • O saque é feito pelo time que marcou o último ponto
+  • O primeiro time a chegar a 25 pontos (com 2 de diferença)
+    vence o set
+  • Melhor de 3 sets vence a partida
+
+══════════════════════════════════════════════════════════════
+                          AÇÕES
+══════════════════════════════════════════════════════════════
+
+  SAQUE
+  ─────
+  • Segure o botão de Pular para carregar a força
+  • Use ← → para mirar a direção
+  • Solte para sacar
+  • Segure por mais tempo para fazer um Saque de Viagem
+    (a bola sobe e o jogador pula para cortar!)
+
+  RECEPÇÃO (no chão)
+  ──────────────────
+  • Pressione S (J1) ou ↓ (J2) para receber a bola
+  • A bola sobe no seu lado da quadra para o levantamento
+
+  PEIXINHO / MERGULHO (no chão)
+  ─────────────────────────────
+  • Pressione Q (J1) ou Ctrl Direito (J2)
+  • O jogador mergulha na direção em que está andando
+  • Útil para salvar bolas longe do alcance normal
+
+  ATAQUE / CORTADA (no ar)
+  ────────────────────────
+  • Pule com W (J1) ou ↑ (J2) perto da rede
+  • Pressione Espaço (J1) ou Shift Dir (J2) no ar
+  • A bola é cortada com força para o lado adversário
+
+  BLOQUEIO (no ar, perto da rede)
+  ───────────────────────────────
+  • Pule perto da rede quando o adversário for atacar
+  • O bloqueio acontece automaticamente ao tocar a bola
+    no ar perto da rede
+
+  LEVANTAMENTO / SET (no ar)
+  ──────────────────────────
+  • No ar, pressione S (J1) ou ↓ (J2) para fazer um set
+  • A bola é levantada para o atacante do seu time finalizar
+
+══════════════════════════════════════════════════════════════
+                      MODOS DE JOGO
+══════════════════════════════════════════════════════════════
+
+  PARTIDA RÁPIDA
+  ──────────────
+  • Jogue uma partida única contra a CPU ou com um amigo
+  • Configure os jogadores e times antes de começar
+
+  TORNEIO
+  ───────
+  • Enfrente uma sequência de adversários cada vez mais fortes
+  • Vença todas as rodadas para ser o campeão!
+
+══════════════════════════════════════════════════════════════
+                   CONFIGURAÇÃO DE TIMES
+══════════════════════════════════════════════════════════════
+
+  • Escolha quem controla cada posição: Player 1, Player 2 ou CPU
+  • Personalize as cores dos times
+  • Escolha a quadra onde quer jogar
+
+══════════════════════════════════════════════════════════════
+                          DICAS
+══════════════════════════════════════════════════════════════
+
+  • Use o peixinho (Q / Ctrl Dir) para alcançar bolas difíceis
+  • No saque, carregue bastante para saques mais potentes
+  • O saque de viagem (segurar por muito tempo) é muito forte!
+  • Posicione-se bem para recepcionar e contra-atacar
+  • No torneio, os adversários ficam mais difíceis a cada rodada
+
+══════════════════════════════════════════════════════════════
+                     Divirta-se! 🏐
+══════════════════════════════════════════════════════════════
